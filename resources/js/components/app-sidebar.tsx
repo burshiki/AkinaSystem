@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { BadgeDollarSignIcon, BookOpen, ChartNoAxesCombinedIcon, Folder, HistoryIcon, LayoutGrid, PcCaseIcon, PiggyBankIcon, SettingsIcon, UsersIcon, UsersRoundIcon, WarehouseIcon } from 'lucide-react';
+import { ChartNoAxesCombinedIcon, HistoryIcon, LayoutGrid, PcCaseIcon, PiggyBankIcon, SettingsIcon, UsersIcon, UsersRoundIcon, WarehouseIcon } from 'lucide-react';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -13,9 +13,9 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import pos from '@/routes/pos';
 import type { NavItem } from '@/types';
 import AppLogo from './app-logo';
-import { report } from 'process';
 
 const mainNavItems: NavItem[] = [
     {
@@ -25,7 +25,7 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'POS',
-        href: dashboard(),
+        href: pos.index().url,
         icon: PcCaseIcon,
     },
     {
