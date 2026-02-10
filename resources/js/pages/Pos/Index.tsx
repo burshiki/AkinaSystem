@@ -15,9 +15,7 @@ export default function PosIndex() {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="POS" />
-            <div>
-                 <Input placeholder="Search" />
-            </div>
+            
         </AppLayout>
     );
 }
