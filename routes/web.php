@@ -9,6 +9,8 @@ use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\Inventory\CategoryController;
 use App\Http\Controllers\Inventory\PurchaseOrderController;
 use App\Http\Controllers\Inventory\SupplierController;
+use App\Http\Controllers\Inventory\StockAdjustmentController;
+use App\Http\Controllers\Inventory\ItemLogController;
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
@@ -66,9 +68,18 @@ Route::prefix('inventory')
                 ->name('inventory.purchase-orders.receive');
         });
 
-        Route::get('stock-adjustments', fn () => Inertia::render('Inventory/StockAdjustments'))
+        Route::resource('stock-adjustments', StockAdjustmentController::class)
+            ->only(['index', 'store', 'destroy'])
             ->middleware('permission:access inventory-stock-adjustments')
-            ->name('inventory.stock-adjustments');
+            ->names([
+                'index' => 'inventory.stock-adjustments',
+                'store' => 'inventory.stock-adjustments.store',
+                'destroy' => 'inventory.stock-adjustments.destroy',
+            ]);
+
+        Route::get('logs', [ItemLogController::class, 'index'])
+            ->middleware('permission:access inventory-log')
+            ->name('inventory.logs');
 
         Route::get('assembly', fn () => Inertia::render('Inventory/Assembly'))
             ->middleware('permission:access inventory-assembly')
@@ -83,10 +94,6 @@ Route::prefix('inventory')
                 'update' => 'inventory.suppliers.update',
                 'destroy' => 'inventory.suppliers.destroy',
             ]);
-
-        Route::get('logs', fn () => Inertia::render('Inventory/Logs'))
-            ->middleware('permission:access inventory-log')
-            ->name('inventory.logs');
     });
 
 require __DIR__.'/settings.php';

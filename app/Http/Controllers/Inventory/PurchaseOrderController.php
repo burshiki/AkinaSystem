@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Models\Item;
+use App\Models\ItemLog;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
@@ -223,6 +224,19 @@ class PurchaseOrderController extends Controller
                     'stock' => $oldStock + $quantityToAdd,
                     'cost' => round($newAverageCost, 2),
                 ]);
+
+                // Log stock movement
+                ItemLog::logStockChange(
+                    itemId: $item->id,
+                    type: 'received',
+                    quantityChange: $quantityToAdd,
+                    oldStock: $oldStock,
+                    newStock: $oldStock + $quantityToAdd,
+                    description: "Received from PO {$purchaseOrder->po_number}" . ($purchaseOrder->supplier ? " - {$purchaseOrder->supplier->name}" : ''),
+                    userId: $request->user()->id,
+                    referenceType: PurchaseOrder::class,
+                    referenceId: $purchaseOrder->id
+                );
             }
 
             // Update received quantity
