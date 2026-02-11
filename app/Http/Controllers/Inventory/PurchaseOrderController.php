@@ -66,7 +66,7 @@ class PurchaseOrderController extends Controller
                 'created_at' => $po->created_at->format('M d, Y'),
             ]);
 
-        $items = Item::select('id', 'name', 'cost')
+        $items = Item::select('id', 'name', 'cost', 'is_main_assembly')
             ->orderBy('name')
             ->get();
 

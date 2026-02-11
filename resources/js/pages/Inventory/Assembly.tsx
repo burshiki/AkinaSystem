@@ -37,6 +37,7 @@ interface Item {
     name: string;
     stock: number;
     is_main_assembly: boolean;
+    is_assemblable: boolean;
 }
 
 interface AssemblyPart {
@@ -406,10 +407,11 @@ export default function InventoryAssembly() {
                                                         {items
                                                             .filter(
                                                                 (item) =>
+                                                                    item.is_assemblable &&
                                                                     item.id !==
-                                                                    parseInt(
-                                                                        formData.final_item_id
-                                                                    )
+                                                                        parseInt(
+                                                                            formData.final_item_id
+                                                                        )
                                                             )
                                                             .map((item) => (
                                                                 <SelectItem

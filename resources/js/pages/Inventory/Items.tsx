@@ -343,6 +343,11 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                         : undefined
                                 }
                             />
+                            {createForm.errors.name && (
+                                <p className="text-xs text-destructive">
+                                    {createForm.errors.name}
+                                </p>
+                            )}
                         </div>
 
                         <div className="grid gap-2">
@@ -380,6 +385,11 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                     ))}
                                 </SelectContent>
                             </Select>
+                            {createForm.errors.category_id && (
+                                <p className="text-xs text-destructive">
+                                    {createForm.errors.category_id}
+                                </p>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -387,8 +397,9 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                 <Label htmlFor="create-price">Price</Label>
                                 <Input
                                     id="create-price"
-                                    type="number"
-                                    step="0.01"
+                                    type="text"
+                                    inputMode="decimal"
+                                    pattern="^\d*(\.\d{0,2})?$"
                                     value={createForm.data.price}
                                     onChange={(event) =>
                                         createForm.setData(
@@ -403,14 +414,20 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                             : undefined
                                     }
                                 />
+                                {createForm.errors.price && (
+                                    <p className="text-xs text-destructive">
+                                        {createForm.errors.price}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="grid gap-2">
                                 <Label htmlFor="create-cost">Cost (Optional)</Label>
                                 <Input
                                     id="create-cost"
-                                    type="number"
-                                    step="0.01"
+                                    type="text"
+                                    inputMode="decimal"
+                                    pattern="^\d*(\.\d{0,2})?$"
                                     value={createForm.data.cost}
                                     onChange={(event) =>
                                         createForm.setData('cost', event.target.value)
@@ -422,6 +439,11 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                             : undefined
                                     }
                                 />
+                                {createForm.errors.cost && (
+                                    <p className="text-xs text-destructive">
+                                        {createForm.errors.cost}
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -429,7 +451,9 @@ export default function InventoryItems({ items, categories }: PageProps) {
                             <Label htmlFor="create-stock">Initial Stock</Label>
                             <Input
                                 id="create-stock"
-                                type="number"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="^\d*$"
                                 value={createForm.data.stock}
                                 onChange={(event) =>
                                     createForm.setData(
@@ -444,6 +468,11 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                         : undefined
                                 }
                             />
+                            {createForm.errors.stock && (
+                                <p className="text-xs text-destructive">
+                                    {createForm.errors.stock}
+                                </p>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -516,6 +545,11 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                         : undefined
                                 }
                             />
+                            {editForm.errors.name && (
+                                <p className="text-xs text-destructive">
+                                    {editForm.errors.name}
+                                </p>
+                            )}
                         </div>
 
                         <div className="grid gap-2">
@@ -553,6 +587,11 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                     ))}
                                 </SelectContent>
                             </Select>
+                            {editForm.errors.category_id && (
+                                <p className="text-xs text-destructive">
+                                    {editForm.errors.category_id}
+                                </p>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -560,8 +599,9 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                 <Label htmlFor="edit-price">Price</Label>
                                 <Input
                                     id="edit-price"
-                                    type="number"
-                                    step="0.01"
+                                    type="text"
+                                    inputMode="decimal"
+                                    pattern="^\d*(\.\d{0,2})?$"
                                     value={editForm.data.price}
                                     onChange={(event) =>
                                         editForm.setData('price', event.target.value)
@@ -573,14 +613,20 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                             : undefined
                                     }
                                 />
+                                {editForm.errors.price && (
+                                    <p className="text-xs text-destructive">
+                                        {editForm.errors.price}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="grid gap-2">
                                 <Label htmlFor="edit-cost">Cost (Optional)</Label>
                                 <Input
                                     id="edit-cost"
-                                    type="number"
-                                    step="0.01"
+                                    type="text"
+                                    inputMode="decimal"
+                                    pattern="^\d*(\.\d{0,2})?$"
                                     value={editForm.data.cost}
                                     onChange={(event) =>
                                         editForm.setData('cost', event.target.value)
@@ -592,6 +638,11 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                             : undefined
                                     }
                                 />
+                                {editForm.errors.cost && (
+                                    <p className="text-xs text-destructive">
+                                        {editForm.errors.cost}
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -599,7 +650,9 @@ export default function InventoryItems({ items, categories }: PageProps) {
                             <Label htmlFor="edit-stock">Stock</Label>
                             <Input
                                 id="edit-stock"
-                                type="number"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="^\d*$"
                                 value={editForm.data.stock}
                                 onChange={(event) =>
                                     editForm.setData(
@@ -614,6 +667,11 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                         : undefined
                                 }
                             />
+                            {editForm.errors.stock && (
+                                <p className="text-xs text-destructive">
+                                    {editForm.errors.stock}
+                                </p>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-2">

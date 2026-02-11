@@ -46,6 +46,7 @@ class AssemblyController extends Controller
                     'name' => $item->name,
                     'stock' => $item->stock,
                     'is_main_assembly' => $item->is_main_assembly,
+                    'is_assemblable' => $item->is_assemblable,
                 ];
             });
 

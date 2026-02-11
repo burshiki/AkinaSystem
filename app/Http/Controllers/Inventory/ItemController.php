@@ -8,6 +8,7 @@ use App\Models\ItemCategory;
 use App\Models\ItemLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -49,7 +50,7 @@ class ItemController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => ['required', 'string', 'max:255', Rule::unique('items', 'name')],
             'category_id' => ['nullable', 'integer', 'exists:item_categories,id'],
             'price' => ['required', 'numeric', 'min:0'],
             'cost' => ['nullable', 'numeric', 'min:0'],
@@ -79,7 +80,12 @@ class ItemController extends Controller
     public function update(Request $request, Item $item): RedirectResponse
     {
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('items', 'name')->ignore($item->id),
+            ],
             'category_id' => ['nullable', 'integer', 'exists:item_categories,id'],
             'price' => ['required', 'numeric', 'min:0'],
             'cost' => ['nullable', 'numeric', 'min:0'],

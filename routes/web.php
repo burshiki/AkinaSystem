@@ -14,6 +14,7 @@ use App\Http\Controllers\Inventory\ItemLogController;
 use App\Http\Controllers\Inventory\AssemblyController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CashRegisterController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SalesHistoryController;
 
 Route::get('/', function () {
@@ -22,9 +23,9 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
-Route::get('dashboard', function () {
-    return Inertia::render('dashboard');
-})->middleware(['auth', 'verified', 'permission:access dashboard'])->name('dashboard');
+Route::get('dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth', 'verified', 'permission:access dashboard'])
+    ->name('dashboard');
 
 Route::resource('pos', PosController::class)->middleware(['auth', 'verified', 'permission:access pos']);
 

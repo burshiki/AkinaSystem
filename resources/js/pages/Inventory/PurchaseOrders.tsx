@@ -66,6 +66,7 @@ type ItemOption = {
     id: number;
     name: string;
     cost: number;
+    is_main_assembly: boolean;
 };
 
 type SupplierOption = {
@@ -648,16 +649,21 @@ export default function InventoryPurchaseOrders({
                                                     <SelectValue placeholder="Select item" />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    {items.map((itemOption) => (
-                                                        <SelectItem
-                                                            key={itemOption.id}
-                                                            value={String(
-                                                                itemOption.id
-                                                            )}
-                                                        >
-                                                            {itemOption.name}
-                                                        </SelectItem>
-                                                    ))}
+                                                    {items
+                                                        .filter(
+                                                            (itemOption) =>
+                                                                !itemOption.is_main_assembly
+                                                        )
+                                                        .map((itemOption) => (
+                                                            <SelectItem
+                                                                key={itemOption.id}
+                                                                value={String(
+                                                                    itemOption.id
+                                                                )}
+                                                            >
+                                                                {itemOption.name}
+                                                            </SelectItem>
+                                                        ))}
                                                 </SelectContent>
                                             </Select>
                                         </div>
