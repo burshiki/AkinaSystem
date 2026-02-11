@@ -118,6 +118,7 @@ export default function InventoryItems({ items, categories }: PageProps) {
             stock: editingItem.stock,
             is_assemblable: editingItem.is_assemblable,
         });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingItem]);
 
     const handleCreateSubmit = (event: FormEvent) => {
@@ -180,7 +181,7 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                             ₱{item.price}
                                         </td>
                                         <td className="py-3 text-right text-muted-foreground">
-                                            ₱{item.cost}
+                                            {item.cost ? `₱${item.cost}` : '-'}
                                         </td>
                                         <td className="py-3 text-right text-muted-foreground">
                                             {item.stock}
@@ -301,7 +302,7 @@ export default function InventoryItems({ items, categories }: PageProps) {
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="create-cost">Cost</Label>
+                                <Label htmlFor="create-cost">Cost (Optional)</Label>
                                 <Input
                                     id="create-cost"
                                     type="number"
@@ -434,7 +435,7 @@ export default function InventoryItems({ items, categories }: PageProps) {
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="edit-cost">Cost</Label>
+                                <Label htmlFor="edit-cost">Cost (Optional)</Label>
                                 <Input
                                     id="edit-cost"
                                     type="number"

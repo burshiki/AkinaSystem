@@ -11,6 +11,7 @@ use App\Http\Controllers\Inventory\PurchaseOrderController;
 use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\Inventory\StockAdjustmentController;
 use App\Http\Controllers\Inventory\ItemLogController;
+use App\Http\Controllers\Inventory\AssemblyController;
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
@@ -81,9 +82,13 @@ Route::prefix('inventory')
             ->middleware('permission:access inventory-log')
             ->name('inventory.logs');
 
-        Route::get('assembly', fn () => Inertia::render('Inventory/Assembly'))
+        Route::resource('assembly', AssemblyController::class)
+            ->only(['index', 'store'])
             ->middleware('permission:access inventory-assembly')
-            ->name('inventory.assembly');
+            ->names([
+                'index' => 'inventory.assembly',
+                'store' => 'inventory.assembly.store',
+            ]);
 
         Route::resource('suppliers', SupplierController::class)
             ->except(['show', 'create', 'edit'])

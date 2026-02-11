@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Inventory;
 use App\Http\Controllers\Controller;
 use App\Models\Item;
 use App\Models\ItemCategory;
+use App\Models\ItemLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -49,12 +50,25 @@ class ItemController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'category_id' => ['nullable', 'integer', 'exists:item_categories,id'],
             'price' => ['required', 'numeric', 'min:0'],
-            'cost' => ['required', 'numeric', 'min:0'],
+            'cost' => ['nullable', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
             'is_assemblable' => ['boolean'],
         ]);
 
-        Item::create($validated);
+        $item = Item::create($validated);
+
+        // Log initial stock if provided
+        if ($validated['stock'] > 0) {
+            ItemLog::logStockChange(
+                itemId: $item->id,
+                type: 'received',
+                quantityChange: $validated['stock'],
+                oldStock: 0,
+                newStock: $validated['stock'],
+                description: 'Initial stock',
+                userId: $request->user()->id,
+            );
+        }
 
         return redirect()->route('inventory.items');
     }
@@ -65,12 +79,28 @@ class ItemController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'category_id' => ['nullable', 'integer', 'exists:item_categories,id'],
             'price' => ['required', 'numeric', 'min:0'],
-            'cost' => ['required', 'numeric', 'min:0'],
+            'cost' => ['nullable', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
             'is_assemblable' => ['boolean'],
         ]);
 
+        $oldStock = $item->stock;
+        $newStock = $validated['stock'];
+
         $item->update($validated);
+
+        // Log stock change if stock was modified
+        if ($oldStock !== $newStock) {
+            ItemLog::logStockChange(
+                itemId: $item->id,
+                type: 'adjustment',
+                quantityChange: $newStock - $oldStock,
+                oldStock: $oldStock,
+                newStock: $newStock,
+                description: 'Manual stock adjustment',
+                userId: $request->user()->id,
+            );
+        }
 
         return redirect()->route('inventory.items');
     }
