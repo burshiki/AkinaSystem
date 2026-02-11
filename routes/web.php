@@ -7,6 +7,8 @@ use App\Http\Controllers\PosController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\Inventory\ItemController;
 use App\Http\Controllers\Inventory\CategoryController;
+use App\Http\Controllers\Inventory\PurchaseOrderController;
+use App\Http\Controllers\Inventory\SupplierController;
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
@@ -47,9 +49,22 @@ Route::prefix('inventory')
                 'destroy' => 'inventory.categories.destroy',
             ]);
 
-        Route::get('purchase-orders', fn () => Inertia::render('Inventory/PurchaseOrders'))
-            ->middleware('permission:access inventory-purchase-orders')
-            ->name('inventory.purchase-orders');
+        Route::middleware('permission:access inventory-purchase-orders')->group(function () {
+            Route::resource('purchase-orders', PurchaseOrderController::class)
+                ->except(['show', 'create', 'edit'])
+                ->names([
+                    'index' => 'inventory.purchase-orders',
+                    'store' => 'inventory.purchase-orders.store',
+                    'update' => 'inventory.purchase-orders.update',
+                    'destroy' => 'inventory.purchase-orders.destroy',
+                ]);
+
+            Route::post('purchase-orders/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])
+                ->name('inventory.purchase-orders.approve');
+
+            Route::post('purchase-orders/{purchaseOrder}/receive', [PurchaseOrderController::class, 'receive'])
+                ->name('inventory.purchase-orders.receive');
+        });
 
         Route::get('stock-adjustments', fn () => Inertia::render('Inventory/StockAdjustments'))
             ->middleware('permission:access inventory-stock-adjustments')
@@ -59,9 +74,15 @@ Route::prefix('inventory')
             ->middleware('permission:access inventory-assembly')
             ->name('inventory.assembly');
 
-        Route::get('suppliers', fn () => Inertia::render('Inventory/Suppliers'))
+        Route::resource('suppliers', SupplierController::class)
+            ->except(['show', 'create', 'edit'])
             ->middleware('permission:access inventory-suppliers')
-            ->name('inventory.suppliers');
+            ->names([
+                'index' => 'inventory.suppliers',
+                'store' => 'inventory.suppliers.store',
+                'update' => 'inventory.suppliers.update',
+                'destroy' => 'inventory.suppliers.destroy',
+            ]);
 
         Route::get('logs', fn () => Inertia::render('Inventory/Logs'))
             ->middleware('permission:access inventory-log')
