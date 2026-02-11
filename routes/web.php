@@ -31,6 +31,10 @@ Route::post('pos/collect-debt', [PosController::class, 'collectDebt'])
     ->middleware(['auth', 'verified', 'permission:access pos'])
     ->name('pos.collect-debt');
 
+Route::get('pos/receipt/{sale}', [PosController::class, 'receipt'])
+    ->middleware(['auth', 'verified', 'permission:access pos'])
+    ->name('pos.receipt');
+
 Route::resource('pos', PosController::class)->middleware(['auth', 'verified', 'permission:access pos']);
 
 Route::get('cash-register', [CashRegisterController::class, 'index'])

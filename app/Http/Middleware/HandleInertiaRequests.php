@@ -46,6 +46,9 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            'flash' => [
+                'last_sale_id' => fn () => $request->session()->get('last_sale_id'),
+            ],
             'auth' => [
                 'user' => $request->user(),
                 'permissions' => $request->user()?->getPermissionNames() ?? [],

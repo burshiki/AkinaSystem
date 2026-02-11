@@ -234,11 +234,16 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
             })),
         }, {
             preserveScroll: true,
-            onSuccess: () => {
+            onSuccess: (page) => {
                 setCart([]);
                 setSelectedCustomer(null);
                 setIsPaymentOpen(false);
                 paymentForm.reset();
+                const saleId = (page.props as { flash?: { last_sale_id?: number } })
+                    .flash?.last_sale_id;
+                if (saleId && window.confirm('Print receipt?')) {
+                    window.open(`/pos/receipt/${saleId}`, '_blank');
+                }
                 setIsSubmitting(false);
             },
             onError: (errors) => {
@@ -250,6 +255,7 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
             },
         });
     };
+
 
     const handleCreateCustomerSubmit = (e: React.FormEvent) => {
         e.preventDefault();

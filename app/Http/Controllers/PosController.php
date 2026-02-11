@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Inertia\Inertia;
+use Inertia\Response;
 use App\Models\BankAccount;
 use App\Models\CashRegisterSession;
 use App\Models\Customer;
@@ -132,7 +133,7 @@ class PosController extends Controller
             ? max(0, $amountPaid - $total)
             : 0;
 
-        DB::transaction(function () use ($validated, $request, $openSession, $subtotal, $total, $amountPaid, $changeGiven) {
+        $sale = DB::transaction(function () use ($validated, $request, $openSession, $subtotal, $total, $amountPaid, $changeGiven) {
             $sale = Sale::create([
                 'customer_id' => $validated['customer_id'],
                 'user_id' => $request->user()->id,
@@ -185,9 +186,45 @@ class PosController extends Controller
                 // Increment customer's debt balance
                 Customer::where('id', $validated['customer_id'])->increment('debt_balance', $total);
             }
+
+            return $sale;
         });
 
-        return redirect()->route('pos.index');
+        return redirect()->route('pos.index')->with('last_sale_id', $sale->id);
+    }
+
+    /**
+     * Show a printable receipt for a sale.
+     */
+    public function receipt(Sale $sale): Response
+    {
+        $sale->load(['items.item', 'customer', 'bankAccount', 'user']);
+
+        $items = $sale->items->map(fn (SaleItem $item) => [
+            'name' => $item->item?->name ?? 'Item',
+            'quantity' => $item->quantity,
+            'price' => $item->price,
+            'subtotal' => $item->subtotal,
+        ]);
+
+        return Inertia::render('Pos/Receipt', [
+            'company' => config('app.name'),
+            'sale' => [
+                'id' => $sale->id,
+                'created_at' => $sale->created_at?->format('M d, Y h:i A'),
+                'payment_method' => $sale->payment_method,
+                'subtotal' => $sale->subtotal,
+                'total' => $sale->total,
+                'amount_paid' => $sale->amount_paid,
+                'change_given' => $sale->change_given,
+                'customer' => $sale->customer?->name ?? 'Walk-in Customer',
+                'cashier' => $sale->user?->name ?? 'Staff',
+                'bank_account' => $sale->bankAccount
+                    ? sprintf('%s - %s', $sale->bankAccount->bank_name, $sale->bankAccount->account_name)
+                    : null,
+            ],
+            'items' => $items,
+        ]);
     }
 
     /**
