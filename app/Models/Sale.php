@@ -15,6 +15,7 @@ class Sale extends Model
         'customer_id',
         'user_id',
         'cash_register_session_id',
+        'bank_account_id',
         'payment_method',
         'subtotal',
         'tax',
@@ -48,6 +49,11 @@ class Sale extends Model
     public function cashRegisterSession(): BelongsTo
     {
         return $this->belongsTo(CashRegisterSession::class);
+    }
+
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class);
     }
 
     public function items(): HasMany

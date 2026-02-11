@@ -51,6 +51,13 @@ type CustomerRow = {
     debt_balance: string;
 };
 
+type BankAccountRow = {
+    id: number;
+    bank_name: string;
+    account_name: string;
+    account_number: string;
+};
+
 type CartItem = {
     id: number;
     name: string;
@@ -63,9 +70,10 @@ type PageProps = {
     items: ItemRow[];
     categories: CategoryRow[];
     customers: CustomerRow[];
+    bankAccounts: BankAccountRow[];
 };
 
-export default function PosIndex({ items, categories, customers }: PageProps) {
+export default function PosIndex({ items, categories, customers, bankAccounts }: PageProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [customerSearch, setCustomerSearch] = useState('');
@@ -80,6 +88,7 @@ export default function PosIndex({ items, categories, customers }: PageProps) {
     const paymentForm = useForm({
         customer_id: null as number | null,
         payment_method: 'cash',
+        bank_account_id: '',
         amount_paid: '',
         items: [] as { item_id: number; quantity: number; price: number }[],
     });
@@ -198,6 +207,9 @@ export default function PosIndex({ items, categories, customers }: PageProps) {
         }
         
         setPaymentMethod(method);
+        if (method !== 'bank') {
+            paymentForm.setData('bank_account_id', '');
+        }
         setIsPaymentOpen(true);
     };
 
@@ -211,6 +223,9 @@ export default function PosIndex({ items, categories, customers }: PageProps) {
         router.post('/pos', {
             customer_id: selectedCustomer?.id ?? null,
             payment_method: paymentMethod,
+            bank_account_id: paymentMethod === 'bank'
+                ? paymentForm.data.bank_account_id || null
+                : null,
             amount_paid: paymentMethod === 'cash' ? paymentForm.data.amount_paid : null,
             items: cart.map((item) => ({
                 item_id: item.id,
@@ -566,6 +581,45 @@ export default function PosIndex({ items, categories, customers }: PageProps) {
                                 ₱{cartTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                             </div>
                         </div>
+                        {paymentMethod === 'bank' && (
+                            <div className="space-y-2.5">
+                                <Label>Bank Account</Label>
+                                <Select
+                                    value={paymentForm.data.bank_account_id}
+                                    onValueChange={(value) =>
+                                        paymentForm.setData('bank_account_id', value)
+                                    }
+                                >
+                                    <SelectTrigger className={
+                                        paymentForm.errors.bank_account_id
+                                            ? 'h-11 border-destructive focus-visible:ring-destructive'
+                                            : 'h-11'
+                                    }>
+                                        <SelectValue placeholder="Select a bank account" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {bankAccounts.map((account) => (
+                                            <SelectItem
+                                                key={account.id}
+                                                value={String(account.id)}
+                                            >
+                                                {account.bank_name} - {account.account_name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {paymentForm.errors.bank_account_id && (
+                                    <p className="text-xs text-destructive">
+                                        {paymentForm.errors.bank_account_id}
+                                    </p>
+                                )}
+                                {bankAccounts.length === 0 && (
+                                    <p className="text-xs text-muted-foreground">
+                                        No bank accounts found. Add one in Settings.
+                                    </p>
+                                )}
+                            </div>
+                        )}
                         {paymentMethod === 'cash' && (
                             <div className="space-y-2.5">
                                 <Label htmlFor="amount-paid">Amount Paid</Label>
@@ -609,7 +663,13 @@ export default function PosIndex({ items, categories, customers }: PageProps) {
                             >
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={isSubmitting}>
+                            <Button
+                                type="submit"
+                                disabled={
+                                    isSubmitting ||
+                                    (paymentMethod === 'bank' && !paymentForm.data.bank_account_id)
+                                }
+                            >
                                 {isSubmitting ? 'Processing...' : 'Complete Sale'}
                             </Button>
                         </DialogFooter>

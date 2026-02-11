@@ -156,4 +156,16 @@ Route::prefix('inventory')
             ]);
     });
 
+Route::prefix('reports')
+    ->middleware(['auth', 'verified', 'permission:access reports'])
+    ->group(function () {
+        Route::get('sales-summary', fn() => Inertia::render('Reports/SalesSummary'))->name('reports.sales-summary');
+        Route::get('sales-by-item', fn() => Inertia::render('Reports/SalesByItem'))->name('reports.sales-by-item');
+        Route::get('sales-by-employee', fn() => Inertia::render('Reports/SalesByEmployee'))->name('reports.sales-by-employee');
+        Route::get('sales-by-payment-type', fn() => Inertia::render('Reports/SalesByPaymentType'))->name('reports.sales-by-payment-type');
+        Route::get('receipts', fn() => Inertia::render('Reports/Receipts'))->name('reports.receipts');
+        Route::get('inventory-valuation', fn() => Inertia::render('Reports/InventoryValuation'))->name('reports.inventory-valuation');
+        Route::get('inventory-count', fn() => Inertia::render('Reports/InventoryCount'))->name('reports.inventory-count');
+    });
+
 require __DIR__.'/settings.php';

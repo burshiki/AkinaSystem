@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Inertia\Inertia;
+use App\Models\BankAccount;
 use App\Models\CashRegisterSession;
 use App\Models\Customer;
 use App\Models\Item;
@@ -62,10 +63,22 @@ class PosController extends Controller
                 'debt_balance' => $customer->debt_balance,
             ]);
 
+        $bankAccounts = BankAccount::query()
+            ->orderBy('bank_name')
+            ->orderBy('account_name')
+            ->get()
+            ->map(fn (BankAccount $account) => [
+                'id' => $account->id,
+                'bank_name' => $account->bank_name,
+                'account_name' => $account->account_name,
+                'account_number' => $account->account_number,
+            ]);
+
         return Inertia::render('Pos/Index', [
             'items' => $items,
             'categories' => $categories,
             'customers' => $customers,
+            'bankAccounts' => $bankAccounts,
         ]);
     }
 
@@ -85,6 +98,7 @@ class PosController extends Controller
         $validated = $request->validate([
             'customer_id' => ['nullable', 'exists:customers,id'],
             'payment_method' => ['required', 'in:cash,bank,credit'],
+            'bank_account_id' => ['required_if:payment_method,bank', 'nullable', 'exists:bank_accounts,id'],
             'amount_paid' => ['required_if:payment_method,cash', 'nullable', 'numeric', 'min:0'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => ['required', 'exists:items,id'],
@@ -123,6 +137,9 @@ class PosController extends Controller
                 'customer_id' => $validated['customer_id'],
                 'user_id' => $request->user()->id,
                 'cash_register_session_id' => $openSession->id,
+                'bank_account_id' => $validated['payment_method'] === 'bank'
+                    ? $validated['bank_account_id']
+                    : null,
                 'payment_method' => $validated['payment_method'],
                 'subtotal' => $subtotal,
                 'total' => $total,

@@ -100,15 +100,51 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Reports',
-        href: dashboard(),
+        href: '/reports/sales-summary',
         icon: ChartNoAxesCombinedIcon,
         permission: 'access reports',
+        children: [
+            {
+                title: 'Sales Summary',
+                href: '/reports/sales-summary',
+            },
+            {
+                title: 'Sales by Item',
+                href: '/reports/sales-by-item',
+            },
+            {
+                title: 'Sales by Employee',
+                href: '/reports/sales-by-employee',
+            },
+            {
+                title: 'Sales by Payment Type',
+                href: '/reports/sales-by-payment-type',
+            },
+            {
+                title: 'Receipts',
+                href: '/reports/receipts',
+            },
+            {
+                title: 'Inventory Valuation',
+                href: '/reports/inventory-valuation',
+            },
+            {
+                title: 'Inventory Count',
+                href: '/reports/inventory-count',
+            },
+        ],
     },
     {
-        title: 'Settings',
-        href: dashboard(),
+        title: 'Options',
+        href: '/settings/bank-accounts',
         icon: SettingsIcon,
         permission: 'access settings',
+        children: [
+            {
+                title: 'Manage Bank Accounts',
+                href: '/settings/bank-accounts',
+            },
+        ],
     },
 ];
 
