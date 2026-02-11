@@ -439,7 +439,7 @@ export default function CashRegisterIndex({ session, itemSales }: PageProps) {
                 )}
                 
                 {!session ? (
-                    <Card className="max-w-xl rounded-3xl shadow-lg">
+                    <Card className="mx-auto w-full max-w-xl rounded-3xl shadow-lg">
                         <CardHeader className="pb-3">
                             <div className="text-xl font-semibold">
                                 Open Register
@@ -478,6 +478,11 @@ export default function CashRegisterIndex({ session, itemSales }: PageProps) {
                                                 : 'h-11'
                                         }
                                     />
+                                    {openForm.errors.opening_balance && (
+                                        <p className="text-xs text-destructive">
+                                            {openForm.errors.opening_balance}
+                                        </p>
+                                    )}
                                 </div>
                                 <Button
                                     type="submit"

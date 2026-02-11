@@ -27,6 +27,10 @@ Route::get('dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified', 'permission:access dashboard'])
     ->name('dashboard');
 
+Route::post('pos/collect-debt', [PosController::class, 'collectDebt'])
+    ->middleware(['auth', 'verified', 'permission:access pos'])
+    ->name('pos.collect-debt');
+
 Route::resource('pos', PosController::class)->middleware(['auth', 'verified', 'permission:access pos']);
 
 Route::get('cash-register', [CashRegisterController::class, 'index'])

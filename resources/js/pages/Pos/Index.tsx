@@ -74,12 +74,27 @@ export default function PosIndex({ items, categories, customers }: PageProps) {
     const [isPaymentOpen, setIsPaymentOpen] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'bank' | 'credit'>('cash');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCreateCustomerOpen, setIsCreateCustomerOpen] = useState(false);
+    const [isCollectDebtOpen, setIsCollectDebtOpen] = useState(false);
 
     const paymentForm = useForm({
         customer_id: null as number | null,
         payment_method: 'cash',
         amount_paid: '',
         items: [] as { item_id: number; quantity: number; price: number }[],
+    });
+
+    const createCustomerForm = useForm({
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
+        notes: '',
+    });
+
+    const collectDebtForm = useForm({
+        customer_id: selectedCustomer?.id ?? null,
+        amount: '',
     });
 
     const filteredCustomers = useMemo(() => {
@@ -115,14 +130,19 @@ export default function PosIndex({ items, categories, customers }: PageProps) {
     // Auto-refresh to sync data across users
     useEffect(() => {
         const interval = setInterval(() => {
-            // Only refresh if page is visible and payment modal is not open
-            if (document.visibilityState === 'visible' && !isPaymentOpen) {
+            // Only refresh if page is visible and no modals are open
+            if (
+                document.visibilityState === 'visible' &&
+                !isPaymentOpen &&
+                !isCreateCustomerOpen &&
+                !isCollectDebtOpen
+            ) {
                 router.reload({ only: ['items', 'categories', 'customers'] });
             }
         }, 5000); // Refresh every 5 seconds
 
         return () => clearInterval(interval);
-    }, [isPaymentOpen]);
+    }, [isPaymentOpen, isCreateCustomerOpen, isCollectDebtOpen]);
 
     const addToCart = (product: ItemRow) => {
         const existingItem = cart.find((item) => item.id === product.id);
@@ -212,6 +232,49 @@ export default function PosIndex({ items, categories, customers }: PageProps) {
             },
             onFinish: () => {
                 setIsSubmitting(false);
+            },
+        });
+    };
+
+    const handleCreateCustomerSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const customerName = createCustomerForm.data.name;
+        
+        createCustomerForm.post('/customers', {
+            onSuccess: () => {
+                // Close dialog and reset form
+                setIsCreateCustomerOpen(false);
+                setCustomerSearch('');
+                createCustomerForm.reset();
+                
+                // Reload customers and select the newly created one
+                router.reload({ only: ['customers'] }, {
+                    onSuccess: (props: any) => {
+                        const newCustomer = props.customers?.find(
+                            (c: CustomerRow) => c.name === customerName
+                        );
+                        if (newCustomer) {
+                            setSelectedCustomer(newCustomer);
+                        }
+                    }
+                });
+            },
+        });
+    };
+
+    const handleCollectDebtSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedCustomer) return;
+
+        router.post('/pos/collect-debt', {
+            customer_id: selectedCustomer.id,
+            amount: collectDebtForm.data.amount,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setIsCollectDebtOpen(false);
+                collectDebtForm.reset();
+                router.reload({ only: ['customers'] });
             },
         });
     };
@@ -319,12 +382,24 @@ export default function PosIndex({ items, categories, customers }: PageProps) {
                                     </div>
                                 ) : (
                                     <>
-                                        <Input
-                                            placeholder="Search customer..."
-                                            className="mt-3 h-11"
-                                            value={customerSearch}
-                                            onChange={(e) => setCustomerSearch(e.target.value)}
-                                        />
+                                        <div className="relative">
+                                            <Input
+                                                placeholder="Search customer..."
+                                                className="mt-3 h-11"
+                                                value={customerSearch}
+                                                onChange={(e) => setCustomerSearch(e.target.value)}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="absolute right-2 top-1/2 -translate-y-1/2"
+                                                onClick={() => setIsCreateCustomerOpen(true)}
+                                                title="Add new customer"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                         {customerSearch && filteredCustomers.length > 0 && (
                                             <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border bg-white shadow-lg">
                                                 {filteredCustomers.map((customer) => (
@@ -453,6 +528,14 @@ export default function PosIndex({ items, categories, customers }: PageProps) {
                                         Debt / Credit
                                     </Button>
                                 </div>
+                                <Button
+                                    variant="outline"
+                                    className="h-11 w-full rounded-full text-emerald-600"
+                                    onClick={() => setIsCollectDebtOpen(true)}
+                                    disabled={!selectedCustomer || parseFloat(selectedCustomer.debt_balance) === 0}
+                                >
+                                    Collect Debt Payment
+                                </Button>
                             </div>
                         </div>
                     </div>
@@ -528,6 +611,204 @@ export default function PosIndex({ items, categories, customers }: PageProps) {
                             </Button>
                             <Button type="submit" disabled={isSubmitting}>
                                 {isSubmitting ? 'Processing...' : 'Complete Sale'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isCreateCustomerOpen} onOpenChange={setIsCreateCustomerOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Add New Customer</DialogTitle>
+                    </DialogHeader>
+                    <hr />
+                    <form onSubmit={handleCreateCustomerSubmit} className="space-y-5">
+                        <div className="space-y-2">
+                            <Label htmlFor="create-name">Name</Label>
+                            <Input
+                                id="create-name"
+                                value={createCustomerForm.data.name}
+                                onChange={(e) =>
+                                    createCustomerForm.setData('name', e.target.value)
+                                }
+                                placeholder="Customer name"
+                                className={
+                                    createCustomerForm.errors.name
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : undefined
+                                }
+                            />
+                            {createCustomerForm.errors.name && (
+                                <p className="text-xs text-destructive">
+                                    {createCustomerForm.errors.name}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                                <Label htmlFor="create-email">Email</Label>
+                                <Input
+                                    id="create-email"
+                                    type="email"
+                                    value={createCustomerForm.data.email}
+                                    onChange={(e) =>
+                                        createCustomerForm.setData('email', e.target.value)
+                                    }
+                                    placeholder="email@example.com"
+                                    className={
+                                        createCustomerForm.errors.email
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
+                                />
+                                {createCustomerForm.errors.email && (
+                                    <p className="text-xs text-destructive">
+                                        {createCustomerForm.errors.email}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="create-phone">Phone</Label>
+                                <Input
+                                    id="create-phone"
+                                    value={createCustomerForm.data.phone}
+                                    onChange={(e) =>
+                                        createCustomerForm.setData('phone', e.target.value)
+                                    }
+                                    placeholder="Phone number"
+                                    className={
+                                        createCustomerForm.errors.phone
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
+                                />
+                                {createCustomerForm.errors.phone && (
+                                    <p className="text-xs text-destructive">
+                                        {createCustomerForm.errors.phone}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => {
+                                    setIsCreateCustomerOpen(false);
+                                    createCustomerForm.reset();
+                                }}
+                                disabled={createCustomerForm.processing}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={createCustomerForm.processing}
+                            >
+                                {createCustomerForm.processing ? 'Creating...' : 'Create Customer'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isCollectDebtOpen} onOpenChange={setIsCollectDebtOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Collect Debt Payment</DialogTitle>
+                    </DialogHeader>
+                    <hr />
+                    <form onSubmit={handleCollectDebtSubmit} className="space-y-5">
+                        {selectedCustomer && (
+                            <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+                                <div>
+                                    <div className="text-sm font-semibold">
+                                        Customer
+                                    </div>
+                                    <div className="text-lg font-semibold">
+                                        {selectedCustomer.name}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-sm font-semibold text-muted-foreground">
+                                        Outstanding Debt
+                                    </div>
+                                    <div className="text-2xl font-semibold text-rose-600">
+                                        ₱
+                                        {parseFloat(selectedCustomer.debt_balance).toLocaleString(
+                                            'en-PH',
+                                            { minimumFractionDigits: 2 }
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <Label htmlFor="debt-amount">Payment Amount</Label>
+                            <Input
+                                id="debt-amount"
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                max={
+                                    selectedCustomer
+                                        ? parseFloat(selectedCustomer.debt_balance)
+                                        : 0
+                                }
+                                value={collectDebtForm.data.amount}
+                                onChange={(e) =>
+                                    collectDebtForm.setData('amount', e.target.value)
+                                }
+                                placeholder="0.00"
+                                className={
+                                    collectDebtForm.errors.amount
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : undefined
+                                }
+                            />
+                            {collectDebtForm.errors.amount && (
+                                <p className="text-xs text-destructive">
+                                    {collectDebtForm.errors.amount}
+                                </p>
+                            )}
+                            {collectDebtForm.data.amount &&
+                                selectedCustomer &&
+                                parseFloat(collectDebtForm.data.amount) > 0 && (
+                                    <div className="text-sm text-muted-foreground">
+                                        Remaining balance: ₱
+                                        {(
+                                            parseFloat(selectedCustomer.debt_balance) -
+                                            parseFloat(collectDebtForm.data.amount)
+                                        ).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                    </div>
+                                )}
+                        </div>
+
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => {
+                                    setIsCollectDebtOpen(false);
+                                    collectDebtForm.reset();
+                                }}
+                                disabled={collectDebtForm.processing}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={collectDebtForm.processing}
+                                className="bg-emerald-600 hover:bg-emerald-700"
+                            >
+                                {collectDebtForm.processing
+                                    ? 'Processing...'
+                                    : 'Record Payment'}
                             </Button>
                         </DialogFooter>
                     </form>

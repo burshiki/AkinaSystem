@@ -204,4 +204,41 @@ class PosController extends Controller
     {
         //
     }
+
+    /**
+     * Collect debt payment from customer
+     */
+    public function collectDebt(Request $request)
+    {
+        $validated = $request->validate([
+            'customer_id' => ['required', 'exists:customers,id'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+        ]);
+
+        $customer = Customer::findOrFail($validated['customer_id']);
+
+        // Ensure payment amount doesn't exceed debt balance
+        if ($validated['amount'] > $customer->debt_balance) {
+            return back()->withErrors([
+                'amount' => "Payment amount cannot exceed debt balance of ₱{$customer->debt_balance}",
+            ]);
+        }
+
+        $openSession = CashRegisterSession::query()
+            ->where('status', 'open')
+            ->where('opened_by', $request->user()->id)
+            ->latest('opened_at')
+            ->first();
+
+        if (!$openSession) {
+            return back()->withErrors(['error' => 'No open cash register session']);
+        }
+
+        DB::transaction(function () use ($customer, $validated, $openSession) {
+            $customer->decrement('debt_balance', $validated['amount']);
+            $openSession->increment('debt_repaid', $validated['amount']);
+        });
+
+        return redirect()->route('pos.index')->with('success', "Debt payment of ₱{$validated['amount']} recorded for {$customer->name}");
+    }
 }
