@@ -1,19 +1,12 @@
-import { FormEvent, useState, useEffect } from 'react';
+import { FormEvent, useMemo, useState, useEffect } from 'react';
 import { Head, usePage } from '@inertiajs/react';
 import { router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import {
     Dialog,
     DialogContent,
-    DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -29,12 +22,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Trash2, Plus, AlertCircle, CheckCircle } from 'lucide-react';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import type { BreadcrumbItem } from '@/types';
 
 interface Item {
     id: number;
     name: string;
     stock: number;
+    is_main_assembly: boolean;
 }
 
 interface AssemblyPart {
@@ -74,8 +76,13 @@ export default function InventoryAssembly() {
     const [assemblies, setAssemblies] = useState(props.assemblies || []);
     const [items] = useState(props.items || []);
     const [isOpen, setIsOpen] = useState(false);
+    const [isViewOpen, setIsViewOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [flashMessage, setFlashMessage] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [viewingAssembly, setViewingAssembly] = useState<Assembly | null>(
+        null
+    );
 
     useEffect(() => {
         setAssemblies(props.assemblies || []);
@@ -99,6 +106,39 @@ export default function InventoryAssembly() {
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
+
+    const openViewDialog = (assembly: Assembly) => {
+        setViewingAssembly(assembly);
+        setIsViewOpen(true);
+    };
+
+    const handleViewToggle = (open: boolean) => {
+        setIsViewOpen(open);
+        if (!open) {
+            setViewingAssembly(null);
+        }
+    };
+
+    const filteredAssemblies = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) {
+            return assemblies;
+        }
+
+        return assemblies.filter((assembly) => {
+            const partsText = assembly.parts
+                .map((part) => part.part_name)
+                .join(' ')
+                .toLowerCase();
+            return (
+                assembly.final_item_name.toLowerCase().includes(query) ||
+                assembly.user_name.toLowerCase().includes(query) ||
+                assembly.created_at.toLowerCase().includes(query) ||
+                (assembly.notes ?? '').toLowerCase().includes(query) ||
+                partsText.includes(query)
+            );
+        });
+    }, [assemblies, searchQuery]);
 
     const handleFinalItemChange = (value: string) => {
         setFormData({ ...formData, final_item_id: value });
@@ -211,36 +251,30 @@ export default function InventoryAssembly() {
                         <span>{flashMessage.message}</span>
                     </div>
                 )}
-                <div className="flex items-center justify-between">
-                    <div className="space-y-2">
-                        <h1 className="text-xl font-semibold">Item Assembly</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Create new items by assembling from parts.
-                        </p>
-                    </div>
-                    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                        <DialogTrigger asChild>
-                            <Button>Create Assembly</Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                            <DialogHeader>
-                                <DialogTitle>Create New Assembly</DialogTitle>
-                                <DialogDescription>
-                                    Select the final item to create and the parts
-                                    needed.
-                                </DialogDescription>
-                            </DialogHeader>
+                <div className="border-t">
+                    <div className="border-b px-6 py-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+                                <Input
+                                    value={searchQuery}
+                                    onChange={(event) =>
+                                        setSearchQuery(event.target.value)
+                                    }
+                                    placeholder="Search by item, part, or user"
+                                    className="sm:w-72"
+                                />
+                            </div>
+                            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                                <DialogTrigger asChild>
+                                    <Button>Add Assembly</Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                                    <DialogHeader>
+                                        <DialogTitle>Add Assembly</DialogTitle>
+                                    </DialogHeader>
+                                    <hr />
 
                             <form onSubmit={handleSubmit} className="space-y-6">
-                                {/* Display any general errors */}
-                                {(errors.assembly_error || errors.stock_error) && (
-                                    <div className="flex items-center gap-3 p-3 bg-red-50 text-red-900 border border-red-200 rounded-lg">
-                                        <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                                        <div>
-                                            <p className="font-medium text-sm">{errors.assembly_error || errors.stock_error}</p>
-                                        </div>
-                                    </div>
-                                )}
                                 {/* Final Item Selection */}
                                 <div className="space-y-2">
                                     <Label htmlFor="final-item">
@@ -250,25 +284,37 @@ export default function InventoryAssembly() {
                                         value={formData.final_item_id}
                                         onValueChange={handleFinalItemChange}
                                     >
-                                        <SelectTrigger>
+                                        <SelectTrigger
+                                            className={
+                                                errors.final_item_id
+                                                    ? 'border-destructive focus-visible:ring-destructive'
+                                                    : undefined
+                                            }
+                                        >
                                             <SelectValue placeholder="Select item to create" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {items.map((item) => (
-                                                <SelectItem
-                                                    key={item.id}
-                                                    value={String(item.id)}
-                                                >
-                                                    {item.name}
-                                                </SelectItem>
-                                            ))}
+                                            {items.filter((item) => item.is_main_assembly)
+                                                .length === 0 ? (
+                                                <div className="p-2 text-sm text-muted-foreground">
+                                                    No main assembly items available.
+                                                </div>
+                                            ) : (
+                                                items
+                                                    .filter(
+                                                        (item) => item.is_main_assembly
+                                                    )
+                                                    .map((item) => (
+                                                        <SelectItem
+                                                            key={item.id}
+                                                            value={String(item.id)}
+                                                        >
+                                                            {item.name}
+                                                        </SelectItem>
+                                                    ))
+                                            )}
                                         </SelectContent>
                                     </Select>
-                                    {errors.final_item_id && (
-                                        <p className="text-sm text-red-600">
-                                            {errors.final_item_id}
-                                        </p>
-                                    )}
                                 </div>
 
                                 {/* Quantity to Create */}
@@ -285,12 +331,12 @@ export default function InventoryAssembly() {
                                             handleQuantityChange(e.target.value)
                                         }
                                         placeholder="1"
+                                        className={
+                                            errors.quantity
+                                                ? 'border-destructive focus-visible:ring-destructive'
+                                                : undefined
+                                        }
                                     />
-                                    {errors.quantity && (
-                                        <p className="text-sm text-red-600">
-                                            {errors.quantity}
-                                        </p>
-                                    )}
                                 </div>
 
                                 {/* Parts Section */}
@@ -327,7 +373,13 @@ export default function InventoryAssembly() {
                                                         )
                                                     }
                                                 >
-                                                    <SelectTrigger>
+                                                    <SelectTrigger
+                                                        className={
+                                                            errors[`parts.${index}.item_id`]
+                                                                ? 'border-destructive focus-visible:ring-destructive'
+                                                                : undefined
+                                                        }
+                                                    >
                                                         <SelectValue placeholder="Select part" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -353,11 +405,6 @@ export default function InventoryAssembly() {
                                                             ))}
                                                     </SelectContent>
                                                 </Select>
-                                                {errors[`parts.${index}.item_id`] && (
-                                                    <p className="text-xs text-red-600">
-                                                        {errors[`parts.${index}.item_id`]}
-                                                    </p>
-                                                )}
                                             </div>
                                             <div className="w-24 space-y-1">
                                                 <Label className="text-xs">
@@ -375,12 +422,12 @@ export default function InventoryAssembly() {
                                                         )
                                                     }
                                                     placeholder="1"
+                                                    className={
+                                                        errors[`parts.${index}.quantity`]
+                                                            ? 'border-destructive focus-visible:ring-destructive'
+                                                            : undefined
+                                                    }
                                                 />
-                                                {errors[`parts.${index}.quantity`] && (
-                                                    <p className="text-xs text-red-600">
-                                                        {errors[`parts.${index}.quantity`]}
-                                                    </p>
-                                                )}
                                             </div>
                                             {formData.parts.length > 1 && (
                                                 <Button
@@ -412,10 +459,10 @@ export default function InventoryAssembly() {
                                     />
                                 </div>
 
-                                <div className="flex gap-3 justify-end pt-4">
+                                <DialogFooter>
                                     <Button
                                         type="button"
-                                        variant="outline"
+                                        variant="ghost"
                                         onClick={() => setIsOpen(false)}
                                         disabled={isSubmitting}
                                     >
@@ -429,108 +476,161 @@ export default function InventoryAssembly() {
                                             ? 'Creating...'
                                             : 'Create Assembly'}
                                     </Button>
-                                </div>
+                                </DialogFooter>
                             </form>
-                        </DialogContent>
-                    </Dialog>
+                                </DialogContent>
+                            </Dialog>
+                        </div>
+                    </div>
+                    <Table className="min-w-[900px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Final Item</TableHead>
+                                <TableHead>Qty Created</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Created By</TableHead>
+                                <TableHead>Notes</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredAssemblies.map((assembly) => (
+                                <TableRow
+                                    key={assembly.id}
+                                    className="border-b last:border-0 odd:bg-muted/10"
+                                >
+                                    <TableCell className="font-medium text-foreground">
+                                        {assembly.final_item_name}
+                                    </TableCell>
+                                    <TableCell>{assembly.quantity}x</TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {assembly.created_at}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {assembly.user_name}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {assembly.notes || '-'}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                openViewDialog(assembly)
+                                            }
+                                        >
+                                            View
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                    {filteredAssemblies.length === 0 && (
+                        <div className="border-t px-6 py-10 text-center text-sm text-muted-foreground">
+                            {searchQuery
+                                ? 'No assemblies match your search.'
+                                : 'No assemblies created yet.'}
+                        </div>
+                    )}
                 </div>
-
-                {/* Assemblies List */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Assembly History</CardTitle>
-                        <CardDescription>
-                            All assemblies created in the system
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {assemblies.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground">
-                                No assemblies created yet.
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {assemblies.map((assembly) => (
-                                    <div
-                                        key={assembly.id}
-                                        className="border rounded-lg p-4 hover:bg-muted/50"
-                                    >
-                                        <div className="grid grid-cols-4 gap-4 mb-3">
-                                            <div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Final Item
-                                                </p>
-                                                <p className="font-semibold">
-                                                    {assembly.final_item_name}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Qty Created
-                                                </p>
-                                                <p className="font-semibold">
-                                                    {assembly.quantity}x
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Date
-                                                </p>
-                                                <p className="text-sm">
-                                                    {assembly.created_at}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Created By
-                                                </p>
-                                                <p className="text-sm">
-                                                    {assembly.user_name}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        {/* Parts Used */}
-                                        <div className="bg-muted/30 rounded p-3 text-sm">
-                                            <p className="font-medium mb-2">
-                                                Parts Used:
-                                            </p>
-                                            <div className="space-y-1">
-                                                {assembly.parts.map((part) => (
-                                                    <div
-                                                        key={part.id}
-                                                        className="flex justify-between text-muted-foreground"
-                                                    >
-                                                        <span>
-                                                            {part.part_name}
-                                                        </span>
-                                                        <span>
-                                                            -{' '}
-                                                            {
-                                                                part.quantity_used
-                                                            }
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Notes */}
-                                        {assembly.notes && (
-                                            <div className="mt-3 text-sm text-muted-foreground">
-                                                <p className="font-medium mb-1">
-                                                    Notes:
-                                                </p>
-                                                <p>{assembly.notes}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
             </div>
+
+            <Dialog open={isViewOpen} onOpenChange={handleViewToggle}>
+                <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Assembly Details</DialogTitle>
+                    </DialogHeader>
+                    <hr />
+                    {viewingAssembly && (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">
+                                        Final Item
+                                    </Label>
+                                    <div className="font-medium">
+                                        {viewingAssembly.final_item_name}
+                                    </div>
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">
+                                        Quantity Created
+                                    </Label>
+                                    <div className="font-medium">
+                                        {viewingAssembly.quantity}
+                                    </div>
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">
+                                        Created By
+                                    </Label>
+                                    <div className="font-medium">
+                                        {viewingAssembly.user_name}
+                                    </div>
+                                </div>
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">
+                                        Created At
+                                    </Label>
+                                    <div className="font-medium">
+                                        {viewingAssembly.created_at}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <Label className="text-xs text-muted-foreground mb-2 block">
+                                    Parts Used
+                                </Label>
+                                <div className="border rounded-md overflow-hidden">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Part</TableHead>
+                                                <TableHead className="text-right">
+                                                    Quantity
+                                                </TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {viewingAssembly.parts.map((part) => (
+                                                <TableRow key={part.id}>
+                                                    <TableCell>
+                                                        {part.part_name}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        {part.quantity_used}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </div>
+
+                            {viewingAssembly.notes && (
+                                <div>
+                                    <Label className="text-xs text-muted-foreground">
+                                        Notes
+                                    </Label>
+                                    <div className="text-sm text-muted-foreground">
+                                        {viewingAssembly.notes}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button onClick={() => handleViewToggle(false)}>
+                            Close
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }

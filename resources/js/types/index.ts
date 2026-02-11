@@ -8,5 +8,8 @@ export type SharedData = {
     name: string;
     auth: Auth;
     sidebarOpen: boolean;
+    register?: {
+        status: 'open' | 'closed';
+    };
     [key: string]: unknown;
 };

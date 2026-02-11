@@ -1,10 +1,8 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
-import InputError from '@/components/input-error';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
@@ -23,6 +21,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 
@@ -40,6 +46,7 @@ type ItemRow = {
     cost: string;
     stock: number;
     is_assemblable: boolean;
+    is_main_assembly: boolean;
 };
 
 type CategoryOption = {
@@ -56,6 +63,7 @@ export default function InventoryItems({ items, categories }: PageProps) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<ItemRow | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const createForm = useForm({
         name: '',
@@ -64,6 +72,7 @@ export default function InventoryItems({ items, categories }: PageProps) {
         cost: '',
         stock: 0,
         is_assemblable: false,
+        is_main_assembly: false,
     });
 
     const editForm = useForm({
@@ -73,7 +82,23 @@ export default function InventoryItems({ items, categories }: PageProps) {
         cost: '',
         stock: 0,
         is_assemblable: false,
+        is_main_assembly: false,
     });
+
+    const filteredItems = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) {
+            return items;
+        }
+
+        return items.filter((item) => {
+            const category = item.category ?? '';
+            return (
+                item.name.toLowerCase().includes(query) ||
+                category.toLowerCase().includes(query)
+            );
+        });
+    }, [items, searchQuery]);
 
     const handleDelete = (itemId: number) => {
         if (!confirm('Delete this item?')) {
@@ -117,6 +142,7 @@ export default function InventoryItems({ items, categories }: PageProps) {
             cost: editingItem.cost,
             stock: editingItem.stock,
             is_assemblable: editingItem.is_assemblable,
+            is_main_assembly: editingItem.is_main_assembly,
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingItem]);
@@ -142,100 +168,111 @@ export default function InventoryItems({ items, categories }: PageProps) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Inventory - Item List" />
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Item List</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                            Manage inventory items and stock.
-                        </p>
+            <div className="space-y-6">
+                <div className="border-t">
+                    <div className="border-b px-6 py-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+                                <Input
+                                    value={searchQuery}
+                                    onChange={(event) =>
+                                        setSearchQuery(event.target.value)
+                                    }
+                                    placeholder="Search by name or category"
+                                    className="sm:w-72"
+                                />
+                            </div>
+                            <Button onClick={() => handleCreateToggle(true)}>
+                                Add Item
+                            </Button>
+                        </div>
                     </div>
-                    <Button onClick={() => handleCreateToggle(true)}>
-                        New item
-                    </Button>
-                </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="border-b text-left text-muted-foreground">
-                                <tr>
-                                    <th className="py-3 font-medium">Name</th>
-                                    <th className="py-3 font-medium">Category</th>
-                                    <th className="py-3 text-right font-medium">Price</th>
-                                    <th className="py-3 text-right font-medium">Cost</th>
-                                    <th className="py-3 text-right font-medium">Stock</th>
-                                    <th className="py-3 text-right font-medium">Assemble?</th>
-                                    <th className="py-3 text-right font-medium">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {items.map((item) => (
-                                    <tr key={item.id} className="border-b last:border-0">
-                                        <td className="py-3 font-medium text-foreground">
-                                            {item.name}
-                                        </td>
-                                        <td className="py-3 text-muted-foreground">
-                                            {item.category ?? '-'}
-                                        </td>
-                                        <td className="py-3 text-right text-muted-foreground">
-                                            ₱{item.price}
-                                        </td>
-                                        <td className="py-3 text-right text-muted-foreground">
-                                            {item.cost ? `₱${item.cost}` : '-'}
-                                        </td>
-                                        <td className="py-3 text-right text-muted-foreground">
-                                            {item.stock}
-                                        </td>
-                                        <td className="py-3 text-right text-muted-foregroun">
-                                            {item.is_assemblable ? (
-                                                <Badge variant="secondary">Yes</Badge>
-                                            ) : (
-                                                <Badge variant="outline">No</Badge>
-                                            )}
-                                        </td>
-                                        <td className="py-3 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    asChild
-                                                >
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            openEditModal(item)
-                                                        }
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                </Button>
-                                                <Button
-                                                    variant="destructive"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        handleDelete(item.id)
-                                                    }
-                                                >
-                                                    Delete
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                    <Table className="min-w-[720px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Category</TableHead>
+                                <TableHead className="text-right">
+                                    Price
+                                </TableHead>
+                                <TableHead className="text-right">Cost</TableHead>
+                                <TableHead className="text-right">Stock</TableHead>
+                                <TableHead className="text-right">
+                                    Assemble?
+                                </TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredItems.map((item) => (
+                                <TableRow
+                                    key={item.id}
+                                    className="border-b last:border-0 odd:bg-muted/10"
+                                >
+                                    <TableCell className="font-medium text-foreground">
+                                        {item.name}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {item.category ?? '-'}
+                                    </TableCell>
+                                    <TableCell className="text-right text-muted-foreground">
+                                        ₱{item.price}
+                                    </TableCell>
+                                    <TableCell className="text-right text-muted-foreground">
+                                        {item.cost ? `₱${item.cost}` : '-'}
+                                    </TableCell>
+                                    <TableCell className="text-right text-muted-foreground">
+                                        {item.stock}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {item.is_assemblable ? (
+                                            <Badge variant="secondary">Yes</Badge>
+                                        ) : (
+                                            <Badge variant="outline">No</Badge>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => openEditModal(item)}
+                                            >
+                                                Edit
+                                            </Button>
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={() =>
+                                                    handleDelete(item.id)
+                                                }
+                                            >
+                                                Delete
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                    {filteredItems.length === 0 && (
+                        <div className="border-t px-6 py-10 text-center text-sm text-muted-foreground">
+                            {searchQuery
+                                ? 'No items match your search.'
+                                : 'No items found. Add your first item to get started.'}
+                        </div>
+                    )}
+                </div>
+            </div>
 
             <Dialog open={isCreateOpen} onOpenChange={handleCreateToggle}>
                 <DialogContent className="sm:max-w-xl">
                     <DialogHeader>
-                        <DialogTitle>Create item</DialogTitle>
-                        <DialogDescription>
-                            Add a new inventory item.
-                        </DialogDescription>
+                        <DialogTitle>Add Item</DialogTitle>
                     </DialogHeader>
+                    <hr />
                     <form onSubmit={handleCreateSubmit} className="space-y-6">
                         <div className="grid gap-2">
                             <Label htmlFor="create-name">Name</Label>
@@ -246,8 +283,12 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                     createForm.setData('name', event.target.value)
                                 }
                                 placeholder="Item name"
+                                className={
+                                    createForm.errors.name
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : undefined
+                                }
                             />
-                            <InputError message={createForm.errors.name} />
                         </div>
 
                         <div className="grid gap-2">
@@ -265,7 +306,13 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                     )
                                 }
                             >
-                                <SelectTrigger>
+                                <SelectTrigger
+                                    className={
+                                        createForm.errors.category_id
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
+                                >
                                     <SelectValue placeholder="Select category" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -279,7 +326,6 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <InputError message={createForm.errors.category_id} />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -297,8 +343,12 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                         )
                                     }
                                     placeholder="0.00"
+                                    className={
+                                        createForm.errors.price
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
                                 />
-                                <InputError message={createForm.errors.price} />
                             </div>
 
                             <div className="grid gap-2">
@@ -312,8 +362,12 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                         createForm.setData('cost', event.target.value)
                                     }
                                     placeholder="0.00"
+                                    className={
+                                        createForm.errors.cost
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
                                 />
-                                <InputError message={createForm.errors.cost} />
                             </div>
                         </div>
 
@@ -330,8 +384,12 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                     )
                                 }
                                 placeholder="0"
+                                className={
+                                    createForm.errors.stock
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : undefined
+                                }
                             />
-                            <InputError message={createForm.errors.stock} />
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -347,6 +405,22 @@ export default function InventoryItems({ items, categories }: PageProps) {
                             />
                             <Label htmlFor="create-assemblable" className="cursor-pointer">
                                 Allow item to be assembled into new products
+                            </Label>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="create-main-assembly"
+                                checked={createForm.data.is_main_assembly}
+                                onCheckedChange={(checked) =>
+                                    createForm.setData(
+                                        'is_main_assembly',
+                                        checked === true
+                                    )
+                                }
+                            />
+                            <Label htmlFor="create-main-assembly" className="cursor-pointer">
+                                Main assembly (finished product)
                             </Label>
                         </div>
 
@@ -369,9 +443,9 @@ export default function InventoryItems({ items, categories }: PageProps) {
             <Dialog open={isEditOpen} onOpenChange={handleEditToggle}>
                 <DialogContent className="sm:max-w-xl">
                     <DialogHeader>
-                        <DialogTitle>Edit item</DialogTitle>
-                        <DialogDescription>Update item details.</DialogDescription>
+                        <DialogTitle>Edit Item</DialogTitle>
                     </DialogHeader>
+                    <hr />
                     <form onSubmit={handleEditSubmit} className="space-y-6">
                         <div className="grid gap-2">
                             <Label htmlFor="edit-name">Name</Label>
@@ -382,8 +456,12 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                     editForm.setData('name', event.target.value)
                                 }
                                 placeholder="Item name"
+                                className={
+                                    editForm.errors.name
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : undefined
+                                }
                             />
-                            <InputError message={editForm.errors.name} />
                         </div>
 
                         <div className="grid gap-2">
@@ -401,7 +479,13 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                     )
                                 }
                             >
-                                <SelectTrigger>
+                                <SelectTrigger
+                                    className={
+                                        editForm.errors.category_id
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
+                                >
                                     <SelectValue placeholder="Select category" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -415,7 +499,6 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <InputError message={editForm.errors.category_id} />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
@@ -430,8 +513,12 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                         editForm.setData('price', event.target.value)
                                     }
                                     placeholder="0.00"
+                                    className={
+                                        editForm.errors.price
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
                                 />
-                                <InputError message={editForm.errors.price} />
                             </div>
 
                             <div className="grid gap-2">
@@ -445,8 +532,12 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                         editForm.setData('cost', event.target.value)
                                     }
                                     placeholder="0.00"
+                                    className={
+                                        editForm.errors.cost
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
                                 />
-                                <InputError message={editForm.errors.cost} />
                             </div>
                         </div>
 
@@ -463,8 +554,12 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                     )
                                 }
                                 placeholder="0"
+                                className={
+                                    editForm.errors.stock
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : undefined
+                                }
                             />
-                            <InputError message={editForm.errors.stock} />
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -480,6 +575,22 @@ export default function InventoryItems({ items, categories }: PageProps) {
                             />
                             <Label htmlFor="edit-assemblable" className="cursor-pointer">
                                 Allow item to be assembled into new products
+                            </Label>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="edit-main-assembly"
+                                checked={editForm.data.is_main_assembly}
+                                onCheckedChange={(checked) =>
+                                    editForm.setData(
+                                        'is_main_assembly',
+                                        checked === true
+                                    )
+                                }
+                            />
+                            <Label htmlFor="edit-main-assembly" className="cursor-pointer">
+                                Main assembly (finished product)
                             </Label>
                         </div>
 

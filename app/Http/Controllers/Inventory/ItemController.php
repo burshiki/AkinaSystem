@@ -28,6 +28,7 @@ class ItemController extends Controller
                 'cost' => $item->cost,
                 'stock' => $item->stock,
                 'is_assemblable' => $item->is_assemblable,
+                'is_main_assembly' => $item->is_main_assembly,
             ]);
 
         $categories = ItemCategory::query()
@@ -53,6 +54,7 @@ class ItemController extends Controller
             'cost' => ['nullable', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
             'is_assemblable' => ['boolean'],
+            'is_main_assembly' => ['boolean'],
         ]);
 
         $item = Item::create($validated);
@@ -82,6 +84,7 @@ class ItemController extends Controller
             'cost' => ['nullable', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
             'is_assemblable' => ['boolean'],
+            'is_main_assembly' => ['boolean'],
         ]);
 
         $oldStock = $item->stock;

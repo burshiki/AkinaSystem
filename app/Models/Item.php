@@ -17,6 +17,7 @@ class Item extends Model
         'cost',
         'stock',
         'is_assemblable',
+        'is_main_assembly',
     ];
 
     protected $casts = [
@@ -24,6 +25,7 @@ class Item extends Model
         'cost' => 'decimal:2',
         'stock' => 'integer',
         'is_assemblable' => 'boolean',
+        'is_main_assembly' => 'boolean',
     ];
 
     public function category(): BelongsTo

@@ -31,8 +31,8 @@ const mainNavItems: NavItem[] = [
         permission: 'access pos',
     },
     {
-        title: 'Drawer',
-        href: dashboard(),
+        title: 'Cash Register',
+        href: '/cash-register',
         icon: PiggyBankIcon,
         permission: 'access drawer',
     },
@@ -87,7 +87,7 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Customers',
-        href: dashboard(),
+        href: '/customers',
         icon: UsersIcon,
         permission: 'access customers',
     },

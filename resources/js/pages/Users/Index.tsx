@@ -5,7 +5,6 @@ import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem, SharedData } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
@@ -15,9 +14,16 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -58,6 +64,7 @@ export default function UsersIndex({ users, permissions }: PageProps) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const createForm = useForm({
         name: '',
@@ -79,6 +86,26 @@ export default function UsersIndex({ users, permissions }: PageProps) {
         () => new Set(editForm.data.permissions),
         [editForm.data.permissions]
     );
+    const allPermissionNames = useMemo(
+        () => permissions.map((permission) => permission.name),
+        [permissions]
+    );
+
+    const filteredUsers = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) {
+            return users;
+        }
+
+        return users.filter((user) => {
+            const permissionsText = user.permissions.join(' ').toLowerCase();
+            return (
+                user.name.toLowerCase().includes(query) ||
+                user.email.toLowerCase().includes(query) ||
+                permissionsText.includes(query)
+            );
+        });
+    }, [searchQuery, users]);
 
     const handleDelete = (userId: number) => {
         if (!confirm('Delete this user?')) {
@@ -167,159 +194,217 @@ export default function UsersIndex({ users, permissions }: PageProps) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Users" />
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Users</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                            Manage user access per module.
-                        </p>
+            <div className="space-y-6">
+                <div className="border-t">
+                    <div className="border-b px-6 py-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+                                <Input
+                                    value={searchQuery}
+                                    onChange={(event) =>
+                                        setSearchQuery(event.target.value)
+                                    }
+                                    placeholder="Search by name, email, or access"
+                                    className="sm:w-72"
+                                />
+                            </div>
+                            <Button onClick={() => handleCreateToggle(true)}>
+                                Add User
+                            </Button>
+                </div>
                     </div>
-                    <Button onClick={() => handleCreateToggle(true)}>
-                        New user
-                    </Button>
-                </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="border-b text-left text-muted-foreground">
-                                <tr>
-                                    <th className="py-3 font-medium">Name</th>
-                                    <th className="py-3 font-medium">Email</th>
-                                    <th className="py-3 font-medium">Admin</th>
-                                    <th className="py-3 font-medium">Access</th>
-                                    <th className="py-3 text-right font-medium">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {users.map((user) => (
-                                    <tr key={user.id} className="border-b last:border-0">
-                                        <td className="py-3 font-medium text-foreground">
-                                            {user.name}
-                                        </td>
-                                        <td className="py-3 text-muted-foreground">
-                                            {user.email}
-                                        </td>
-                                        <td className="py-3">
-                                            {user.is_admin && (
-                                                <Badge variant="default">Admin</Badge>
-                                            )}
-                                        </td>
-                                        <td className="py-3">
-                                            <div className="flex flex-wrap gap-2">
-                                                {user.permissions.length === 0 ? (
-                                                    <Badge variant="outline">No access</Badge>
-                                                ) : (
-                                                    user.permissions.map((permission) => (
-                                                        <Badge key={permission} variant="secondary">
-                                                            {formatPermission(permission)}
+                    <Table className="min-w-[720px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Role</TableHead>
+                                <TableHead>Access</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredUsers.map((user) => (
+                                <TableRow
+                                    key={user.id}
+                                    className="border-b last:border-0 odd:bg-muted/10"
+                                >
+                                    <TableCell className="font-medium text-foreground">
+                                        {user.name}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {user.email}
+                                    </TableCell>
+                                    <TableCell>
+                                        {user.is_admin ? (
+                                            <Badge variant="default">Admin</Badge>
+                                        ) : (
+                                            <Badge variant="secondary">Standard</Badge>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-wrap gap-2">
+                                            {user.permissions.length === 0 ? (
+                                                <Badge variant="outline">
+                                                    No access
+                                                </Badge>
+                                            ) : (
+                                                <>
+                                                    {user.permissions
+                                                        .slice(0, 3)
+                                                        .map((permission) => (
+                                                            <Badge
+                                                                key={permission}
+                                                                variant="secondary"
+                                                            >
+                                                                {formatPermission(
+                                                                    permission
+                                                                )}
+                                                            </Badge>
+                                                        ))}
+                                                    {user.permissions.length > 3 && (
+                                                        <Badge variant="outline">
+                                                            +
+                                                            {user.permissions.length - 3}{' '}
+                                                            more
                                                         </Badge>
-                                                    ))
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="py-3 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <Button variant="outline" size="sm" asChild>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => openEditModal(user)}
-                                                    >
-                                                        Edit
-                                                    </button>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    openEditModal(user)
+                                                }
+                                            >
+                                                Edit
+                                            </Button>
+                                            {auth?.user?.id !== user.id && (
+                                                <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        handleDelete(user.id)
+                                                    }
+                                                >
+                                                    Delete
                                                 </Button>
-                                                {auth?.user?.id !== user.id && (
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() => handleDelete(user.id)}
-                                                    >
-                                                        Delete
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                    {filteredUsers.length === 0 && (
+                        <div className="border-t px-6 py-10 text-center text-sm text-muted-foreground">
+                            {searchQuery
+                                ? 'No users match your search.'
+                                : 'No users found. Add your first account to get started.'}
+                        </div>
+                    )}
+                </div>
+            </div>
 
             <Dialog open={isCreateOpen} onOpenChange={handleCreateToggle}>
                 <DialogContent className="sm:max-w-2xl">
                     <DialogHeader>
-                        <DialogTitle>Create user</DialogTitle>
-                        <DialogDescription>
-                            Add a new user and select their module access.
-                        </DialogDescription>
+                        <DialogTitle>Add User</DialogTitle>
                     </DialogHeader>
+                    <hr />
                     <form onSubmit={handleCreateSubmit} className="space-y-6">
-                        <div className="grid gap-2">
-                            <Label htmlFor="create-name">Name</Label>
-                            <Input
-                                id="create-name"
-                                value={createForm.data.name}
-                                onChange={(event) =>
-                                    createForm.setData(
-                                        'name',
-                                        event.target.value
-                                    )
-                                }
-                                placeholder="Full name"
-                            />
-                            <InputError message={createForm.errors.name} />
-                        </div>
+                        <div className="space-y-4">
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="create-name">Name</Label>
+                                    <Input
+                                        id="create-name"
+                                        value={createForm.data.name}
+                                        onChange={(event) =>
+                                            createForm.setData(
+                                                'name',
+                                                event.target.value
+                                            )
+                                        }
+                                        placeholder="Full name"
+                                        className={
+                                            createForm.errors.name
+                                                ? 'border-destructive focus-visible:ring-destructive'
+                                                : undefined
+                                        }
+                                    />
+                                </div>
 
-                        <div className="grid gap-2">
-                            <Label htmlFor="create-email">Email</Label>
-                            <Input
-                                id="create-email"
-                                type="email"
-                                value={createForm.data.email}
-                                onChange={(event) =>
-                                    createForm.setData(
-                                        'email',
-                                        event.target.value
-                                    )
-                                }
-                                placeholder="Email address"
-                            />
-                            <InputError message={createForm.errors.email} />
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="create-password">Password</Label>
-                            <Input
-                                id="create-password"
-                                type="password"
-                                value={createForm.data.password}
-                                onChange={(event) =>
-                                    createForm.setData(
-                                        'password',
-                                        event.target.value
-                                    )
-                                }
-                                placeholder="Temporary password"
-                            />
-                            <InputError message={createForm.errors.password} />
-                        </div>
-
-                        <div className="space-y-3">
-                            <div className="text-sm font-medium text-foreground">
-                                Module access
+                                <div className="grid gap-2">
+                                    <Label htmlFor="create-email">Email</Label>
+                                    <Input
+                                        id="create-email"
+                                        type="email"
+                                        value={createForm.data.email}
+                                        onChange={(event) =>
+                                            createForm.setData(
+                                                'email',
+                                                event.target.value
+                                            )
+                                        }
+                                        placeholder="Email address"
+                                        className={
+                                            createForm.errors.email
+                                                ? 'border-destructive focus-visible:ring-destructive'
+                                                : undefined
+                                        }
+                                    />
+                                </div>
                             </div>
-                            <div className="grid gap-3 sm:grid-cols-2">
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="create-password">Password</Label>
+                                <Input
+                                    id="create-password"
+                                    type="password"
+                                    value={createForm.data.password}
+                                    onChange={(event) =>
+                                        createForm.setData(
+                                            'password',
+                                            event.target.value
+                                        )
+                                    }
+                                    placeholder="Temporary password"
+                                    className={
+                                        createForm.errors.password
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="text-sm font-medium text-foreground">
+                                Access configuration
+                            </div>
+                            <div
+                                className={`grid gap-3 sm:grid-cols-2 ${
+                                    createForm.errors.permissions
+                                        ? 'rounded-md ring-1 ring-destructive/60'
+                                        : ''
+                                }`}
+                            >
                                 {permissions.map((permission) => (
                                     <label
                                         key={permission.name}
-                                        className="flex items-center gap-2 rounded-md border p-3 text-sm"
+                                        className="flex items-center gap-2 rounded-md border bg-background p-3 text-sm"
                                     >
                                         <Checkbox
                                             checked={createForm.data.permissions.includes(
                                                 permission.name
                                             )}
+                                            disabled={createForm.data.is_admin}
                                             onCheckedChange={(checked) =>
                                                 toggleCreatePermission(
                                                     permission.name,
@@ -331,23 +416,37 @@ export default function UsersIndex({ users, permissions }: PageProps) {
                                     </label>
                                 ))}
                             </div>
-                            <InputError message={createForm.errors.permissions} />
-                        </div>
 
-                        <div className="grid gap-2">
-                            <label className="flex items-center gap-2">
-                                <Checkbox
-                                    checked={createForm.data.is_admin}
-                                    onCheckedChange={(checked) =>
-                                        createForm.setData('is_admin', checked === true)
-                                    }
-                                />
-                                <span className="text-sm font-medium">Administrator</span>
-                            </label>
-                            <p className="text-xs text-muted-foreground">
-                                Admins have full system access regardless of module permissions.
-                            </p>
-                            <InputError message={createForm.errors.is_admin} />
+                            <div
+                                className={`grid gap-2 ${
+                                    createForm.errors.is_admin
+                                        ? 'rounded-md ring-1 ring-destructive/60'
+                                        : ''
+                                }`}
+                            >
+                                <label className="flex items-center gap-2">
+                                    <Checkbox
+                                        checked={createForm.data.is_admin}
+                                        onCheckedChange={(checked) => {
+                                            const isAdmin = checked === true;
+                                            createForm.setData(
+                                                'is_admin',
+                                                isAdmin
+                                            );
+                                            createForm.setData(
+                                                'permissions',
+                                                isAdmin ? allPermissionNames : []
+                                            );
+                                        }}
+                                    />
+                                    <span className="text-sm font-medium">
+                                        Administrator
+                                    </span>
+                                </label>
+                                <p className="text-xs text-muted-foreground">
+                                    Admins have full system access regardless of module permissions.
+                                </p>
+                            </div>
                         </div>
 
                         <DialogFooter>
@@ -375,64 +474,90 @@ export default function UsersIndex({ users, permissions }: PageProps) {
                         </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleEditSubmit} className="space-y-6">
-                        <div className="grid gap-2">
-                            <Label htmlFor="edit-name">Name</Label>
-                            <Input
-                                id="edit-name"
-                                value={editForm.data.name}
-                                onChange={(event) =>
-                                    editForm.setData('name', event.target.value)
-                                }
-                                placeholder="Full name"
-                            />
-                            <InputError message={editForm.errors.name} />
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="edit-email">Email</Label>
-                            <Input
-                                id="edit-email"
-                                type="email"
-                                value={editForm.data.email}
-                                onChange={(event) =>
-                                    editForm.setData('email', event.target.value)
-                                }
-                                placeholder="Email address"
-                            />
-                            <InputError message={editForm.errors.email} />
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="edit-password">Password</Label>
-                            <Input
-                                id="edit-password"
-                                type="password"
-                                value={editForm.data.password}
-                                onChange={(event) =>
-                                    editForm.setData(
-                                        'password',
-                                        event.target.value
-                                    )
-                                }
-                                placeholder="Leave blank to keep current"
-                            />
-                            <InputError message={editForm.errors.password} />
-                        </div>
-
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             <div className="text-sm font-medium text-foreground">
-                                Module access
+                                Account details
                             </div>
-                            <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="edit-name">Name</Label>
+                                    <Input
+                                        id="edit-name"
+                                        value={editForm.data.name}
+                                        onChange={(event) =>
+                                            editForm.setData('name', event.target.value)
+                                        }
+                                        placeholder="Full name"
+                                        className={
+                                            editForm.errors.name
+                                                ? 'border-destructive focus-visible:ring-destructive'
+                                                : undefined
+                                        }
+                                    />
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="edit-email">Email</Label>
+                                    <Input
+                                        id="edit-email"
+                                        type="email"
+                                        value={editForm.data.email}
+                                        onChange={(event) =>
+                                            editForm.setData('email', event.target.value)
+                                        }
+                                        placeholder="Email address"
+                                        className={
+                                            editForm.errors.email
+                                                ? 'border-destructive focus-visible:ring-destructive'
+                                                : undefined
+                                        }
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-password">Password</Label>
+                                <Input
+                                    id="edit-password"
+                                    type="password"
+                                    value={editForm.data.password}
+                                    onChange={(event) =>
+                                        editForm.setData(
+                                            'password',
+                                            event.target.value
+                                        )
+                                    }
+                                    placeholder="Leave blank to keep current"
+                                    className={
+                                        editForm.errors.password
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="text-sm font-medium text-foreground">
+                                Access configuration
+                            </div>
+                            <div
+                                className={`grid gap-3 sm:grid-cols-2 ${
+                                    editForm.errors.permissions
+                                        ? 'rounded-md ring-1 ring-destructive/60'
+                                        : ''
+                                }`}
+                            >
                                 {permissions.map((permission) => (
                                     <label
                                         key={permission.name}
-                                        className="flex items-center gap-2 rounded-md border p-3 text-sm"
+                                        className="flex items-center gap-2 rounded-md border bg-background p-3 text-sm"
                                     >
                                         <Checkbox
                                             checked={permissionSet.has(
                                                 permission.name
                                             )}
+                                            disabled={editForm.data.is_admin}
                                             onCheckedChange={(checked) =>
                                                 toggleEditPermission(
                                                     permission.name,
@@ -444,23 +569,37 @@ export default function UsersIndex({ users, permissions }: PageProps) {
                                     </label>
                                 ))}
                             </div>
-                            <InputError message={editForm.errors.permissions} />
-                        </div>
 
-                        <div className="grid gap-2">
-                            <label className="flex items-center gap-2">
-                                <Checkbox
-                                    checked={editForm.data.is_admin}
-                                    onCheckedChange={(checked) =>
-                                        editForm.setData('is_admin', checked === true)
-                                    }
-                                />
-                                <span className="text-sm font-medium">Administrator</span>
-                            </label>
-                            <p className="text-xs text-muted-foreground">
-                                Admins have full system access regardless of module permissions.
-                            </p>
-                            <InputError message={editForm.errors.is_admin} />
+                            <div
+                                className={`grid gap-2 ${
+                                    editForm.errors.is_admin
+                                        ? 'rounded-md ring-1 ring-destructive/60'
+                                        : ''
+                                }`}
+                            >
+                                <label className="flex items-center gap-2">
+                                    <Checkbox
+                                        checked={editForm.data.is_admin}
+                                        onCheckedChange={(checked) => {
+                                            const isAdmin = checked === true;
+                                            editForm.setData(
+                                                'is_admin',
+                                                isAdmin
+                                            );
+                                            editForm.setData(
+                                                'permissions',
+                                                isAdmin ? allPermissionNames : []
+                                            );
+                                        }}
+                                    />
+                                    <span className="text-sm font-medium">
+                                        Administrator
+                                    </span>
+                                </label>
+                                <p className="text-xs text-muted-foreground">
+                                    Admins have full system access regardless of module permissions.
+                                </p>
+                            </div>
                         </div>
 
                         <DialogFooter>

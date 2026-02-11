@@ -1,20 +1,25 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem, SharedData } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -60,6 +65,7 @@ export default function InventoryStockAdjustments() {
     >().props;
 
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const createForm = useForm<{
         item_id: number;
@@ -72,6 +78,25 @@ export default function InventoryStockAdjustments() {
         reason: '',
         notes: '',
     });
+
+    const filteredAdjustments = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) {
+            return adjustments;
+        }
+
+        return adjustments.filter((adjustment) =>
+            [
+                adjustment.item_name,
+                adjustment.reason_label,
+                adjustment.user_name,
+                adjustment.created_at,
+            ]
+                .join(' ')
+                .toLowerCase()
+                .includes(query)
+        );
+    }, [adjustments, searchQuery]);
 
     const handleCreateToggle = (open: boolean) => {
         setIsCreateOpen(open);
@@ -116,99 +141,101 @@ export default function InventoryStockAdjustments() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Inventory - Stock Adjustment" />
             <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <div className="space-y-2">
-                        <h1 className="text-xl font-semibold">Stock Adjustment</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Record manual stock adjustments with reasons.
-                        </p>
+                <div className="border-t">
+                    <div className="border-b px-6 py-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+                                <Input
+                                    value={searchQuery}
+                                    onChange={(event) =>
+                                        setSearchQuery(event.target.value)
+                                    }
+                                    placeholder="Search by item, reason, or user"
+                                    className="sm:w-72"
+                                />
+                            </div>
+                            <Button onClick={() => setIsCreateOpen(true)}>
+                                Add Adjustment
+                            </Button>
+                        </div>
                     </div>
-                    <Button onClick={() => setIsCreateOpen(true)}>
-                        New Adjustment
-                    </Button>
+                    <Table className="min-w-[900px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Item</TableHead>
+                                <TableHead className="text-right">Change</TableHead>
+                                <TableHead className="text-right">Old Stock</TableHead>
+                                <TableHead className="text-right">New Stock</TableHead>
+                                <TableHead>Reason</TableHead>
+                                <TableHead>By</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredAdjustments.map((adjustment) => (
+                                <TableRow
+                                    key={adjustment.id}
+                                    className="border-b last:border-0 odd:bg-muted/10"
+                                >
+                                    <TableCell className="text-muted-foreground">
+                                        {adjustment.created_at}
+                                    </TableCell>
+                                    <TableCell className="font-medium text-foreground">
+                                        {adjustment.item_name}
+                                    </TableCell>
+                                    <TableCell
+                                        className={`text-right font-medium ${
+                                            adjustment.quantity_change > 0
+                                                ? 'text-green-600'
+                                                : 'text-red-600'
+                                        }`}
+                                    >
+                                        {adjustment.quantity_change > 0 ? '+' : ''}
+                                        {adjustment.quantity_change}
+                                    </TableCell>
+                                    <TableCell className="text-right text-muted-foreground">
+                                        {adjustment.old_stock}
+                                    </TableCell>
+                                    <TableCell className="text-right text-muted-foreground">
+                                        {adjustment.new_stock}
+                                    </TableCell>
+                                    <TableCell>{getReasonBadge(adjustment.reason)}</TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {adjustment.user_name}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() =>
+                                                handleDelete(adjustment.id)
+                                            }
+                                        >
+                                            Reverse
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                    {filteredAdjustments.length === 0 && (
+                        <div className="border-t px-6 py-10 text-center text-sm text-muted-foreground">
+                            {searchQuery
+                                ? 'No adjustments match your search.'
+                                : 'No stock adjustments recorded yet.'}
+                        </div>
+                    )}
                 </div>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Adjustment History</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {adjustments.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground">
-                                No stock adjustments recorded yet.
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="border-b">
-                                        <tr className="text-left text-sm">
-                                            <th className="py-3 px-3 font-medium">Date</th>
-                                            <th className="py-3 px-3 font-medium">Item</th>
-                                            <th className="py-3 px-3 font-medium text-right">Change</th>
-                                            <th className="py-3 px-3 font-medium text-right">Old Stock</th>
-                                            <th className="py-3 px-3 font-medium text-right">New Stock</th>
-                                            <th className="py-3 px-3 font-medium">Reason</th>
-                                            <th className="py-3 px-3 font-medium">By</th>
-                                            <th className="py-3 px-3 font-medium">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {adjustments.map((adjustment) => (
-                                            <tr key={adjustment.id} className="border-b">
-                                                <td className="py-3 px-3 text-sm">
-                                                    {adjustment.created_at}
-                                                </td>
-                                                <td className="py-3 px-3 text-sm">
-                                                    {adjustment.item_name}
-                                                </td>
-                                                <td className={`py-3 px-3 text-sm text-right font-medium ${
-                                                    adjustment.quantity_change > 0 
-                                                        ? 'text-green-600' 
-                                                        : 'text-red-600'
-                                                }`}>
-                                                    {adjustment.quantity_change > 0 ? '+' : ''}
-                                                    {adjustment.quantity_change}
-                                                </td>
-                                                <td className="py-3 px-3 text-sm text-right">
-                                                    {adjustment.old_stock}
-                                                </td>
-                                                <td className="py-3 px-3 text-sm text-right">
-                                                    {adjustment.new_stock}
-                                                </td>
-                                                <td className="py-3 px-3 text-sm">
-                                                    {getReasonBadge(adjustment.reason)}
-                                                </td>
-                                                <td className="py-3 px-3 text-sm text-muted-foreground">
-                                                    {adjustment.user_name}
-                                                </td>
-                                                <td className="py-3 px-3">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleDelete(adjustment.id)}
-                                                    >
-                                                        Reverse
-                                                    </Button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
             </div>
 
             {/* Create Modal */}
             <Dialog open={isCreateOpen} onOpenChange={handleCreateToggle}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
-                        <DialogTitle>New Stock Adjustment</DialogTitle>
-                        <DialogDescription>
-                            Adjust item stock levels with a tracking reason.
-                        </DialogDescription>
+                        <DialogTitle>Add Stock Adjustment</DialogTitle>
                     </DialogHeader>
+                    <hr />
                     <form onSubmit={handleCreateSubmit} className="space-y-4">
                         <div className="grid gap-2">
                             <Label htmlFor="create-item">
@@ -220,7 +247,13 @@ export default function InventoryStockAdjustments() {
                                     createForm.setData('item_id', Number(value))
                                 }
                             >
-                                <SelectTrigger>
+                                <SelectTrigger
+                                    className={
+                                        createForm.errors.item_id
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
+                                >
                                     <SelectValue placeholder="Select item" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -240,7 +273,6 @@ export default function InventoryStockAdjustments() {
                                     )}
                                 </SelectContent>
                             </Select>
-                            <InputError message={createForm.errors.item_id} />
                             {selectedItem && (
                                 <p className="text-sm text-muted-foreground">
                                     Current stock: {selectedItem.stock}
@@ -263,8 +295,12 @@ export default function InventoryStockAdjustments() {
                                     )
                                 }
                                 placeholder="Use negative for deductions (e.g., -5)"
+                                className={
+                                    createForm.errors.quantity_change
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : undefined
+                                }
                             />
-                            <InputError message={createForm.errors.quantity_change} />
                             {selectedItem && createForm.data.quantity_change !== 0 && (
                                 <p className="text-sm text-muted-foreground">
                                     New stock will be: {selectedItem.stock + createForm.data.quantity_change}
@@ -282,7 +318,13 @@ export default function InventoryStockAdjustments() {
                                     createForm.setData('reason', value)
                                 }
                             >
-                                <SelectTrigger>
+                                <SelectTrigger
+                                    className={
+                                        createForm.errors.reason
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
+                                >
                                     <SelectValue placeholder="Select reason" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -292,7 +334,6 @@ export default function InventoryStockAdjustments() {
                                     <SelectItem value="internal_use">Internal Use</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <InputError message={createForm.errors.reason} />
                         </div>
 
                         <div className="grid gap-2">
@@ -305,8 +346,12 @@ export default function InventoryStockAdjustments() {
                                 }
                                 placeholder="Optional notes about this adjustment"
                                 rows={3}
+                                className={
+                                    createForm.errors.notes
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : undefined
+                                }
                             />
-                            <InputError message={createForm.errors.notes} />
                         </div>
 
                         <DialogFooter>

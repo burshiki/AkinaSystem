@@ -3,7 +3,6 @@ import { useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem, SharedData } from '@/types';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
     Select,
@@ -12,6 +11,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Inventory', href: '/inventory/items' },
@@ -86,20 +93,10 @@ export default function InventoryLogs() {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Inventory - Item Logs" />
             <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <div className="space-y-2">
-                        <h1 className="text-xl font-semibold">Item Logs</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Monitor all stock movements and changes.
-                        </p>
-                    </div>
-                </div>
-
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <CardTitle>Stock Movement History</CardTitle>
-                            <div className="w-64">
+                <div className="border-t">
+                    <div className="border-b px-6 py-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="w-full max-w-xs">
                                 <Label htmlFor="filter-item" className="sr-only">
                                     Filter by Item
                                 </Label>
@@ -130,92 +127,67 @@ export default function InventoryLogs() {
                                 </Select>
                             </div>
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        {logs.length === 0 ? (
-                            <div className="text-center py-8 text-muted-foreground">
-                                {filterItemId
-                                    ? 'No logs found for this item.'
-                                    : 'No stock movements recorded yet.'}
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="border-b">
-                                        <tr className="text-left text-sm">
-                                            <th className="py-3 px-3 font-medium">
-                                                Date & Time
-                                            </th>
-                                            <th className="py-3 px-3 font-medium">
-                                                Item
-                                            </th>
-                                            <th className="py-3 px-3 font-medium">
-                                                Type
-                                            </th>
-                                            <th className="py-3 px-3 font-medium text-right">
-                                                Change
-                                            </th>
-                                            <th className="py-3 px-3 font-medium text-right">
-                                                Old Stock
-                                            </th>
-                                            <th className="py-3 px-3 font-medium text-right">
-                                                New Stock
-                                            </th>
-                                            <th className="py-3 px-3 font-medium">
-                                                Description
-                                            </th>
-                                            <th className="py-3 px-3 font-medium">
-                                                By
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {logs.map((log) => (
-                                            <tr
-                                                key={log.id}
-                                                className="border-b hover:bg-muted/50"
-                                            >
-                                                <td className="py-3 px-3 text-sm">
-                                                    {log.created_at}
-                                                </td>
-                                                <td className="py-3 px-3 text-sm font-medium">
-                                                    {log.item_name}
-                                                </td>
-                                                <td className="py-3 px-3 text-sm">
-                                                    {getTypeBadge(log.type)}
-                                                </td>
-                                                <td
-                                                    className={`py-3 px-3 text-sm text-right font-semibold ${
-                                                        log.quantity_change > 0
-                                                            ? 'text-green-600'
-                                                            : 'text-red-600'
-                                                    }`}
-                                                >
-                                                    {log.quantity_change > 0
-                                                        ? '+'
-                                                        : ''}
-                                                    {log.quantity_change}
-                                                </td>
-                                                <td className="py-3 px-3 text-sm text-right text-muted-foreground">
-                                                    {log.old_stock}
-                                                </td>
-                                                <td className="py-3 px-3 text-sm text-right font-medium">
-                                                    {log.new_stock}
-                                                </td>
-                                                <td className="py-3 px-3 text-sm text-muted-foreground">
-                                                    {log.description || '-'}
-                                                </td>
-                                                <td className="py-3 px-3 text-sm text-muted-foreground">
-                                                    {log.user_name}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                    </div>
+                    <Table className="min-w-[900px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date & Time</TableHead>
+                                <TableHead>Item</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead className="text-right">Change</TableHead>
+                                <TableHead className="text-right">Old Stock</TableHead>
+                                <TableHead className="text-right">New Stock</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead>By</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {logs.map((log) => (
+                                <TableRow
+                                    key={log.id}
+                                    className="border-b last:border-0 odd:bg-muted/10"
+                                >
+                                    <TableCell className="text-muted-foreground">
+                                        {log.created_at}
+                                    </TableCell>
+                                    <TableCell className="font-medium">
+                                        {log.item_name}
+                                    </TableCell>
+                                    <TableCell>{getTypeBadge(log.type)}</TableCell>
+                                    <TableCell
+                                        className={`text-right font-semibold ${
+                                            log.quantity_change > 0
+                                                ? 'text-green-600'
+                                                : 'text-red-600'
+                                        }`}
+                                    >
+                                        {log.quantity_change > 0 ? '+' : ''}
+                                        {log.quantity_change}
+                                    </TableCell>
+                                    <TableCell className="text-right text-muted-foreground">
+                                        {log.old_stock}
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium">
+                                        {log.new_stock}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {log.description || '-'}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {log.user_name}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                    {logs.length === 0 && (
+                        <div className="border-t px-6 py-10 text-center text-sm text-muted-foreground">
+                            {filterItemId
+                                ? 'No logs found for this item.'
+                                : 'No stock movements recorded yet.'}
+                        </div>
+                    )}
+                </div>
             </div>
         </AppLayout>
     );

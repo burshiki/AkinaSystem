@@ -1,11 +1,10 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -14,9 +13,16 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Inventory', href: '/inventory/items' },
@@ -37,6 +43,7 @@ export default function InventoryCategories({ categories }: PageProps) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<CategoryRow | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const createForm = useForm({
         name: '',
@@ -45,6 +52,17 @@ export default function InventoryCategories({ categories }: PageProps) {
     const editForm = useForm({
         name: '',
     });
+
+    const filteredCategories = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) {
+            return categories;
+        }
+
+        return categories.filter((category) =>
+            category.name.toLowerCase().includes(query)
+        );
+    }, [categories, searchQuery]);
 
     const handleDelete = (categoryId: number) => {
         if (!confirm('Delete this category? Items in this category will not be deleted.')) {
@@ -107,94 +125,112 @@ export default function InventoryCategories({ categories }: PageProps) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Inventory - Item Category" />
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Item Categories</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                            Manage inventory item categories.
-                        </p>
+            <div className="space-y-6">
+                <div className="border-t">
+                    <div className="border-b px-6 py-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+                                <Input
+                                    value={searchQuery}
+                                    onChange={(event) =>
+                                        setSearchQuery(event.target.value)
+                                    }
+                                    placeholder="Search categories"
+                                    className="sm:w-72"
+                                />
+                            </div>
+                            <Button onClick={() => handleCreateToggle(true)}>
+                                Add Category
+                            </Button>
+                        </div>
                     </div>
-                    <Button onClick={() => handleCreateToggle(true)}>
-                        New category
-                    </Button>
-                </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="border-b text-left text-muted-foreground">
-                                <tr>
-                                    <th className="py-3 font-medium">Name</th>
-                                    <th className="py-3 font-medium">Items</th>
-                                    <th className="py-3 text-right font-medium">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {categories.map((category) => (
-                                    <tr key={category.id} className="border-b last:border-0">
-                                        <td className="py-3 font-medium text-foreground">
-                                            {category.name}
-                                        </td>
-                                        <td className="py-3">
-                                            <Badge variant="secondary">
-                                                {category.items_count} items
-                                            </Badge>
-                                        </td>
-                                        <td className="py-3 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    asChild
-                                                >
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            openEditModal(category)
-                                                        }
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                </Button>
-                                                <Button
-                                                    variant="destructive"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        handleDelete(category.id)
-                                                    }
-                                                >
-                                                    Delete
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                    <Table className="min-w-[520px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Items</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredCategories.map((category) => (
+                                <TableRow
+                                    key={category.id}
+                                    className="border-b last:border-0 odd:bg-muted/10"
+                                >
+                                    <TableCell className="font-medium text-foreground">
+                                        {category.name}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant="secondary">
+                                            {category.items_count} items
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    openEditModal(category)
+                                                }
+                                            >
+                                                Edit
+                                            </Button>
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={() =>
+                                                    handleDelete(category.id)
+                                                }
+                                            >
+                                                Delete
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                    {filteredCategories.length === 0 && (
+                        <div className="border-t px-6 py-10 text-center text-sm text-muted-foreground">
+                            {searchQuery
+                                ? 'No categories match your search.'
+                                : 'No categories found. Add your first category to get started.'}
+                        </div>
+                    )}
+                </div>
+            </div>
 
             <Dialog open={isCreateOpen} onOpenChange={handleCreateToggle}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Create category</DialogTitle>
-                        <DialogDescription>
-                            Add a new item category.
-                        </DialogDescription>
+                        <DialogTitle>Add Category</DialogTitle>
                     </DialogHeader>
+                    <hr />
                     <form onSubmit={handleCreateSubmit} className="space-y-6">
-                        <div className="grid gap-2">
-                            <Label htmlFor="create-name">Name</Label>
-                            <Input
-                                id="create-name"
-                                value={createForm.data.name}
-                                onChange={(event) =>
-                                    createForm.setData('name', event.target.value)
-                                }
-                                placeholder="Category name"
-                            />
-                            <InputError message={createForm.errors.name} />
+                        <div className="space-y-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="create-name">Name</Label>
+                                <Input
+                                    id="create-name"
+                                    value={createForm.data.name}
+                                    onChange={(event) =>
+                                        createForm.setData(
+                                            'name',
+                                            event.target.value
+                                        )
+                                    }
+                                    placeholder="Category name"
+                                    className={
+                                        createForm.errors.name
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
+                                />
+                            </div>
                         </div>
 
                         <DialogFooter>
@@ -216,21 +252,30 @@ export default function InventoryCategories({ categories }: PageProps) {
             <Dialog open={isEditOpen} onOpenChange={handleEditToggle}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Edit category</DialogTitle>
-                        <DialogDescription>Update category details.</DialogDescription>
+                        <DialogTitle>Edit Category</DialogTitle>
                     </DialogHeader>
+                    <hr />
                     <form onSubmit={handleEditSubmit} className="space-y-6">
-                        <div className="grid gap-2">
-                            <Label htmlFor="edit-name">Name</Label>
-                            <Input
-                                id="edit-name"
-                                value={editForm.data.name}
-                                onChange={(event) =>
-                                    editForm.setData('name', event.target.value)
-                                }
-                                placeholder="Category name"
-                            />
-                            <InputError message={editForm.errors.name} />
+                        <div className="space-y-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-name">Name</Label>
+                                <Input
+                                    id="edit-name"
+                                    value={editForm.data.name}
+                                    onChange={(event) =>
+                                        editForm.setData(
+                                            'name',
+                                            event.target.value
+                                        )
+                                    }
+                                    placeholder="Category name"
+                                    className={
+                                        editForm.errors.name
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
+                                />
+                            </div>
                         </div>
 
                         <DialogFooter>

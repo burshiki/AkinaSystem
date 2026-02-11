@@ -12,6 +12,8 @@ use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\Inventory\StockAdjustmentController;
 use App\Http\Controllers\Inventory\ItemLogController;
 use App\Http\Controllers\Inventory\AssemblyController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\CashRegisterController;
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
@@ -25,9 +27,29 @@ Route::get('dashboard', function () {
 
 Route::resource('pos', PosController::class)->middleware(['auth', 'verified', 'permission:access pos']);
 
+Route::get('cash-register', [CashRegisterController::class, 'index'])
+    ->middleware(['auth', 'verified', 'permission:access drawer'])
+    ->name('cash-register.index');
+
+Route::post('cash-register/open', [CashRegisterController::class, 'open'])
+    ->middleware(['auth', 'verified', 'permission:access drawer'])
+    ->name('cash-register.open');
+
+Route::post('cash-register/close', [CashRegisterController::class, 'close'])
+    ->middleware(['auth', 'verified', 'permission:access drawer'])
+    ->name('cash-register.close');
+
 Route::resource('users', UserController::class)
     ->except(['show'])
     ->middleware(['auth', 'verified', 'permission:access users']);
+
+Route::resource('customers', CustomerController::class)
+    ->except(['show', 'create', 'edit'])
+    ->middleware(['auth', 'verified', 'permission:access customers']);
+
+Route::post('customers/{customer}/pay-debt', [CustomerController::class, 'payDebt'])
+    ->middleware(['auth', 'verified', 'permission:access customers'])
+    ->name('customers.pay-debt');
 
 Route::prefix('inventory')
     ->middleware(['auth', 'verified'])

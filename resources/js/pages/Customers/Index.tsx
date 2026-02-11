@@ -1,9 +1,6 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -14,7 +11,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
     Table,
     TableBody,
@@ -23,39 +19,43 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
+import AppLayout from '@/layouts/app-layout';
+import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Inventory', href: '/inventory/items' },
-    { title: 'Suppliers', href: '/inventory/suppliers' },
+    { title: 'Customers', href: '/customers' },
 ];
 
-type SupplierRow = {
+type CustomerRow = {
     id: number;
     name: string;
-    contact_person?: string | null;
     email?: string | null;
     phone?: string | null;
     address?: string | null;
     notes?: string | null;
-    purchase_orders_count: number;
-    created_at: string;
+    debt_balance: string;
+    created_at?: string | null;
 };
 
 type PageProps = {
-    suppliers: SupplierRow[];
+    customers: CustomerRow[];
 };
 
-export default function InventorySuppliers({ suppliers }: PageProps) {
+export default function CustomersIndex({ customers }: PageProps) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
-    const [editingSupplier, setEditingSupplier] = useState<SupplierRow | null>(
+    const [isPayDebtOpen, setIsPayDebtOpen] = useState(false);
+    const [editingCustomer, setEditingCustomer] = useState<CustomerRow | null>(
+        null
+    );
+    const [payingDebtCustomer, setPayingDebtCustomer] = useState<CustomerRow | null>(
         null
     );
     const [searchQuery, setSearchQuery] = useState('');
 
     const createForm = useForm({
         name: '',
-        contact_person: '',
         email: '',
         phone: '',
         address: '',
@@ -64,31 +64,34 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
 
     const editForm = useForm({
         name: '',
-        contact_person: '',
         email: '',
         phone: '',
         address: '',
         notes: '',
     });
 
-    const filteredSuppliers = useMemo(() => {
+    const payDebtForm = useForm({
+        amount: '',
+    });
+
+    const filteredCustomers = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
         if (!query) {
-            return suppliers;
+            return customers;
         }
 
-        return suppliers.filter((supplier) =>
+        return customers.filter((customer) =>
             [
-                supplier.name,
-                supplier.contact_person ?? '',
-                supplier.email ?? '',
-                supplier.phone ?? '',
+                customer.name,
+                customer.email ?? '',
+                customer.phone ?? '',
+                customer.address ?? '',
             ]
                 .join(' ')
                 .toLowerCase()
                 .includes(query)
         );
-    }, [searchQuery, suppliers]);
+    }, [customers, searchQuery]);
 
     const handleCreateToggle = (open: boolean) => {
         setIsCreateOpen(open);
@@ -101,55 +104,87 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
     const handleEditToggle = (open: boolean) => {
         setIsEditOpen(open);
         if (!open) {
-            setEditingSupplier(null);
+            setEditingCustomer(null);
             editForm.reset();
             editForm.clearErrors();
         }
     };
 
-    const openEditModal = (supplier: SupplierRow) => {
-        setEditingSupplier(supplier);
+    const openEditModal = (customer: CustomerRow) => {
+        setEditingCustomer(customer);
         setIsEditOpen(true);
     };
 
     useEffect(() => {
-        if (!editingSupplier) return;
+        if (!editingCustomer) {
+            return;
+        }
 
         editForm.setData({
-            name: editingSupplier.name,
-            contact_person: editingSupplier.contact_person ?? '',
-            email: editingSupplier.email ?? '',
-            phone: editingSupplier.phone ?? '',
-            address: editingSupplier.address ?? '',
-            notes: editingSupplier.notes ?? '',
+            name: editingCustomer.name,
+            email: editingCustomer.email ?? '',
+            phone: editingCustomer.phone ?? '',
+            address: editingCustomer.address ?? '',
+            notes: editingCustomer.notes ?? '',
         });
-    }, [editingSupplier]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [editingCustomer]);
 
     const handleCreateSubmit = (event: FormEvent) => {
         event.preventDefault();
-        createForm.post('/inventory/suppliers', {
+        createForm.post('/customers', {
             onSuccess: () => handleCreateToggle(false),
         });
     };
 
     const handleEditSubmit = (event: FormEvent) => {
         event.preventDefault();
-        if (!editingSupplier) return;
+        if (!editingCustomer) {
+            return;
+        }
 
-        editForm.put(`/inventory/suppliers/${editingSupplier.id}`, {
+        editForm.put(`/customers/${editingCustomer.id}`, {
             onSuccess: () => handleEditToggle(false),
         });
     };
 
-    const handleDelete = (supplierId: number) => {
-        if (!confirm('Delete this supplier?')) return;
+    const handleDelete = (customerId: number) => {
+        if (!confirm('Delete this customer?')) {
+            return;
+        }
 
-        router.delete(`/inventory/suppliers/${supplierId}`);
+        router.delete(`/customers/${customerId}`);
+    };
+
+    const openPayDebtModal = (customer: CustomerRow) => {
+        setPayingDebtCustomer(customer);
+        setIsPayDebtOpen(true);
+        payDebtForm.reset();
+    };
+
+    const handlePayDebtToggle = (open: boolean) => {
+        setIsPayDebtOpen(open);
+        if (!open) {
+            setPayingDebtCustomer(null);
+            payDebtForm.reset();
+            payDebtForm.clearErrors();
+        }
+    };
+
+    const handlePayDebtSubmit = (event: FormEvent) => {
+        event.preventDefault();
+        if (!payingDebtCustomer) {
+            return;
+        }
+
+        payDebtForm.post(`/customers/${payingDebtCustomer.id}/pay-debt`, {
+            onSuccess: () => handlePayDebtToggle(false),
+        });
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Suppliers" />
+            <Head title="Customers" />
             <div className="space-y-6">
                 <div className="border-t">
                     <div className="border-b px-6 py-4">
@@ -160,12 +195,12 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
                                     onChange={(event) =>
                                         setSearchQuery(event.target.value)
                                     }
-                                    placeholder="Search suppliers"
+                                    placeholder="Search customers"
                                     className="sm:w-72"
                                 />
                             </div>
                             <Button onClick={() => handleCreateToggle(true)}>
-                                Add Supplier
+                                Add Customer
                             </Button>
                         </div>
                     </div>
@@ -173,122 +208,100 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Name</TableHead>
-                                <TableHead>Contact Person</TableHead>
                                 <TableHead>Email</TableHead>
                                 <TableHead>Phone</TableHead>
-                                <TableHead>Purchase Orders</TableHead>
+                                <TableHead>Address</TableHead>
+                                <TableHead className="text-right">Debt Balance</TableHead>
                                 <TableHead className="text-right">
                                     Actions
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredSuppliers.map((supplier) => (
+                            {filteredCustomers.map((customer) => (
                                 <TableRow
-                                    key={supplier.id}
+                                    key={customer.id}
                                     className="border-b last:border-0 odd:bg-muted/10"
                                 >
                                     <TableCell className="font-medium text-foreground">
-                                        {supplier.name}
+                                        {customer.name}
                                     </TableCell>
                                     <TableCell className="text-muted-foreground">
-                                        {supplier.contact_person || '-'}
+                                        {customer.email || '-'}
                                     </TableCell>
                                     <TableCell className="text-muted-foreground">
-                                        {supplier.email || '-'}
+                                        {customer.phone || '-'}
                                     </TableCell>
                                     <TableCell className="text-muted-foreground">
-                                        {supplier.phone || '-'}
+                                        {customer.address || '-'}
                                     </TableCell>
-                                    <TableCell>
-                                        <Badge variant="outline">
-                                            {supplier.purchase_orders_count} POs
-                                        </Badge>
+                                    <TableCell className={`text-right font-semibold ${parseFloat(customer.debt_balance) > 0 ? 'text-rose-600' : 'text-muted-foreground'}`}>
+                                        ₱{parseFloat(customer.debt_balance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex justify-end gap-2">
+                                            {parseFloat(customer.debt_balance) > 0 && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => openPayDebtModal(customer)}
+                                                    className="text-emerald-600 hover:text-emerald-700"
+                                                >
+                                                    Pay Debt
+                                                </Button>
+                                            )}
                                             <Button
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() =>
-                                                    openEditModal(supplier)
+                                                    openEditModal(customer)
                                                 }
                                             >
                                                 Edit
                                             </Button>
-                                            {supplier.purchase_orders_count ===
-                                                0 && (
-                                                <Button
-                                                    variant="destructive"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        handleDelete(
-                                                            supplier.id
-                                                        )
-                                                    }
-                                                >
-                                                    Delete
-                                                </Button>
-                                            )}
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={() =>
+                                                    handleDelete(customer.id)
+                                                }
+                                            >
+                                                Delete
+                                            </Button>
                                         </div>
                                     </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
-                    {filteredSuppliers.length === 0 && (
+                    {filteredCustomers.length === 0 && (
                         <div className="border-t px-6 py-10 text-center text-sm text-muted-foreground">
                             {searchQuery
-                                ? 'No suppliers match your search.'
-                                : 'No suppliers found. Add your first supplier to get started.'}
+                                ? 'No customers match your search.'
+                                : 'No customers found. Add your first customer to get started.'}
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Create Modal */}
             <Dialog open={isCreateOpen} onOpenChange={handleCreateToggle}>
                 <DialogContent className="sm:max-w-2xl">
                     <DialogHeader>
-                        <DialogTitle>Add Supplier</DialogTitle>
+                        <DialogTitle>Add Customer</DialogTitle>
                     </DialogHeader>
                     <hr />
-                    <form onSubmit={handleCreateSubmit} className="space-y-4">
+                    <form onSubmit={handleCreateSubmit} className="space-y-6">
                         <div className="grid gap-2">
-                            <Label htmlFor="create-name">
-                                Supplier Name <span className="text-destructive">*</span>
-                            </Label>
+                            <Label htmlFor="create-name">Name</Label>
                             <Input
                                 id="create-name"
                                 value={createForm.data.name}
                                 onChange={(event) =>
                                     createForm.setData('name', event.target.value)
                                 }
-                                placeholder="Enter supplier name"
+                                placeholder="Customer name"
                                 className={
                                     createForm.errors.name
-                                        ? 'border-destructive focus-visible:ring-destructive'
-                                        : undefined
-                                }
-                            />
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="create-contact">
-                                Contact Person
-                            </Label>
-                            <Input
-                                id="create-contact"
-                                value={createForm.data.contact_person}
-                                onChange={(event) =>
-                                    createForm.setData(
-                                        'contact_person',
-                                        event.target.value
-                                    )
-                                }
-                                placeholder="Enter contact person name"
-                                className={
-                                    createForm.errors.contact_person
                                         ? 'border-destructive focus-visible:ring-destructive'
                                         : undefined
                                 }
@@ -303,10 +316,7 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
                                     type="email"
                                     value={createForm.data.email}
                                     onChange={(event) =>
-                                        createForm.setData(
-                                            'email',
-                                            event.target.value
-                                        )
+                                        createForm.setData('email', event.target.value)
                                     }
                                     placeholder="email@example.com"
                                     className={
@@ -323,10 +333,7 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
                                     id="create-phone"
                                     value={createForm.data.phone}
                                     onChange={(event) =>
-                                        createForm.setData(
-                                            'phone',
-                                            event.target.value
-                                        )
+                                        createForm.setData('phone', event.target.value)
                                     }
                                     placeholder="Enter phone number"
                                     className={
@@ -340,17 +347,13 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
 
                         <div className="grid gap-2">
                             <Label htmlFor="create-address">Address</Label>
-                            <Textarea
+                            <Input
                                 id="create-address"
                                 value={createForm.data.address}
                                 onChange={(event) =>
-                                    createForm.setData(
-                                        'address',
-                                        event.target.value
-                                    )
+                                    createForm.setData('address', event.target.value)
                                 }
-                                placeholder="Enter full address"
-                                rows={2}
+                                placeholder="Customer address"
                                 className={
                                     createForm.errors.address
                                         ? 'border-destructive focus-visible:ring-destructive'
@@ -367,8 +370,8 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
                                 onChange={(event) =>
                                     createForm.setData('notes', event.target.value)
                                 }
-                                placeholder="Additional notes or comments"
-                                rows={2}
+                                placeholder="Additional notes"
+                                rows={3}
                                 className={
                                     createForm.errors.notes
                                         ? 'border-destructive focus-visible:ring-destructive'
@@ -385,58 +388,32 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
                             >
                                 Cancel
                             </Button>
-                            <Button
-                                type="submit"
-                                disabled={createForm.processing}
-                            >
-                                Save Supplier
+                            <Button type="submit" disabled={createForm.processing}>
+                                Save customer
                             </Button>
                         </DialogFooter>
                     </form>
                 </DialogContent>
             </Dialog>
 
-            {/* Edit Modal */}
             <Dialog open={isEditOpen} onOpenChange={handleEditToggle}>
                 <DialogContent className="sm:max-w-2xl">
                     <DialogHeader>
-                        <DialogTitle>Edit Supplier</DialogTitle>
+                        <DialogTitle>Edit Customer</DialogTitle>
                     </DialogHeader>
                     <hr />
-                    <form onSubmit={handleEditSubmit} className="space-y-4">
+                    <form onSubmit={handleEditSubmit} className="space-y-6">
                         <div className="grid gap-2">
-                            <Label htmlFor="edit-name">
-                                Supplier Name <span className="text-destructive">*</span>
-                            </Label>
+                            <Label htmlFor="edit-name">Name</Label>
                             <Input
                                 id="edit-name"
                                 value={editForm.data.name}
                                 onChange={(event) =>
                                     editForm.setData('name', event.target.value)
                                 }
-                                placeholder="Enter supplier name"
+                                placeholder="Customer name"
                                 className={
                                     editForm.errors.name
-                                        ? 'border-destructive focus-visible:ring-destructive'
-                                        : undefined
-                                }
-                            />
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="edit-contact">Contact Person</Label>
-                            <Input
-                                id="edit-contact"
-                                value={editForm.data.contact_person}
-                                onChange={(event) =>
-                                    editForm.setData(
-                                        'contact_person',
-                                        event.target.value
-                                    )
-                                }
-                                placeholder="Enter contact person name"
-                                className={
-                                    editForm.errors.contact_person
                                         ? 'border-destructive focus-visible:ring-destructive'
                                         : undefined
                                 }
@@ -451,10 +428,7 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
                                     type="email"
                                     value={editForm.data.email}
                                     onChange={(event) =>
-                                        editForm.setData(
-                                            'email',
-                                            event.target.value
-                                        )
+                                        editForm.setData('email', event.target.value)
                                     }
                                     placeholder="email@example.com"
                                     className={
@@ -471,10 +445,7 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
                                     id="edit-phone"
                                     value={editForm.data.phone}
                                     onChange={(event) =>
-                                        editForm.setData(
-                                            'phone',
-                                            event.target.value
-                                        )
+                                        editForm.setData('phone', event.target.value)
                                     }
                                     placeholder="Enter phone number"
                                     className={
@@ -488,17 +459,13 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
 
                         <div className="grid gap-2">
                             <Label htmlFor="edit-address">Address</Label>
-                            <Textarea
+                            <Input
                                 id="edit-address"
                                 value={editForm.data.address}
                                 onChange={(event) =>
-                                    editForm.setData(
-                                        'address',
-                                        event.target.value
-                                    )
+                                    editForm.setData('address', event.target.value)
                                 }
-                                placeholder="Enter full address"
-                                rows={2}
+                                placeholder="Customer address"
                                 className={
                                     editForm.errors.address
                                         ? 'border-destructive focus-visible:ring-destructive'
@@ -515,8 +482,8 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
                                 onChange={(event) =>
                                     editForm.setData('notes', event.target.value)
                                 }
-                                placeholder="Additional notes or comments"
-                                rows={2}
+                                placeholder="Additional notes"
+                                rows={3}
                                 className={
                                     editForm.errors.notes
                                         ? 'border-destructive focus-visible:ring-destructive'
@@ -534,7 +501,71 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
                                 Cancel
                             </Button>
                             <Button type="submit" disabled={editForm.processing}>
-                                Update Supplier
+                                Update customer
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isPayDebtOpen} onOpenChange={handlePayDebtToggle}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Pay Debt</DialogTitle>
+                    </DialogHeader>
+                    <hr />
+                    <form onSubmit={handlePayDebtSubmit} className="space-y-6">
+                        {payingDebtCustomer && (
+                            <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+                                <div>
+                                    <div className="text-sm font-semibold">Customer</div>
+                                    <div className="text-lg">{payingDebtCustomer.name}</div>
+                                </div>
+                                <div>
+                                    <div className="text-sm font-semibold text-muted-foreground">Current Debt Balance</div>
+                                    <div className="text-2xl font-semibold text-rose-600">
+                                        ₱{parseFloat(payingDebtCustomer.debt_balance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="pay-amount">Payment Amount</Label>
+                            <Input
+                                id="pay-amount"
+                                type="number"
+                                step="0.01"
+                                min="0.01"
+                                max={payingDebtCustomer?.debt_balance}
+                                value={payDebtForm.data.amount}
+                                onChange={(event) =>
+                                    payDebtForm.setData('amount', event.target.value)
+                                }
+                                placeholder="0.00"
+                                className={
+                                    payDebtForm.errors.amount
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : undefined
+                                }
+                            />
+                            {payDebtForm.data.amount && payingDebtCustomer && (
+                                <div className="text-sm text-muted-foreground">
+                                    Remaining balance: ₱{(parseFloat(payingDebtCustomer.debt_balance) - parseFloat(payDebtForm.data.amount || '0')).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                </div>
+                            )}
+                        </div>
+
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => handlePayDebtToggle(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={payDebtForm.processing} className="bg-emerald-600 hover:bg-emerald-700">
+                                Record Payment
                             </Button>
                         </DialogFooter>
                     </form>

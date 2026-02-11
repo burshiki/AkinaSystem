@@ -1,14 +1,11 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { useEffect, useState } from 'react';
-import InputError from '@/components/input-error';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -22,6 +19,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem, SharedData } from '@/types';
@@ -87,6 +92,7 @@ export default function InventoryPurchaseOrders({
     const [editingPO, setEditingPO] = useState<PurchaseOrderRow | null>(null);
     const [viewingPO, setViewingPO] = useState<PurchaseOrderRow | null>(null);
     const [receivingPO, setReceivingPO] = useState<PurchaseOrderRow | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const createForm = useForm<{
         supplier_id: number;
@@ -113,6 +119,23 @@ export default function InventoryPurchaseOrders({
     }>({
         items: [],
     });
+
+    const filteredPurchaseOrders = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) {
+            return purchaseOrders;
+        }
+
+        return purchaseOrders.filter((po) => {
+            const status = po.status.replace('_', ' ');
+            return (
+                po.po_number.toLowerCase().includes(query) ||
+                po.supplier_name.toLowerCase().includes(query) ||
+                po.requested_by.toLowerCase().includes(query) ||
+                status.includes(query)
+            );
+        });
+    }, [purchaseOrders, searchQuery]);
 
     const handleCreateToggle = (open: boolean) => {
         setIsCreateOpen(open);
@@ -341,155 +364,145 @@ export default function InventoryPurchaseOrders({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Purchase Orders" />
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Purchase Orders</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                            Create and manage supplier purchase orders with
-                            approval workflow.
-                        </p>
+            <div className="space-y-6">
+                <div className="border-t">
+                    <div className="border-b px-6 py-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center lg:w-auto">
+                                <Input
+                                    value={searchQuery}
+                                    onChange={(event) =>
+                                        setSearchQuery(event.target.value)
+                                    }
+                                    placeholder="Search by PO, supplier, or status"
+                                    className="sm:w-72"
+                                />
+                            </div>
+                            <Button onClick={() => handleCreateToggle(true)}>
+                                Add Purchase Order
+                            </Button>
+                        </div>
                     </div>
-                    <Button onClick={() => handleCreateToggle(true)}>
-                        New Purchase Order
-                    </Button>
-                </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="border-b text-left text-muted-foreground">
-                                <tr>
-                                    <th className="py-3 font-medium">PO #</th>
-                                    <th className="py-3 font-medium">
-                                        Supplier
-                                    </th>
-                                    <th className="py-3 font-medium">Status</th>
-                                    <th className="py-3 font-medium">
-                                        Requested By
-                                    </th>
-                                    <th className="py-3 font-medium">
-                                        Total Amount
-                                    </th>
-                                    <th className="py-3 font-medium">Date</th>
-                                    <th className="py-3 text-right font-medium">
-                                        Actions
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {purchaseOrders.length === 0 ? (
-                                    <tr>
-                                        <td
-                                            colSpan={7}
-                                            className="py-8 text-center text-muted-foreground"
-                                        >
-                                            No purchase orders yet. Click &quot;New
-                                            Purchase Order&quot; to create one.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    purchaseOrders.map((po) => (
-                                    <tr
-                                        key={po.id}
-                                        className="border-b last:border-0"
-                                    >
-                                        <td className="py-3 font-medium text-foreground">
-                                            {po.po_number}
-                                        </td>
-                                        <td className="py-3 text-muted-foreground">
-                                            {po.supplier_name}
-                                        </td>
-                                        <td className="py-3">
-                                            {getStatusBadge(po.status)}
-                                        </td>
-                                        <td className="py-3 text-muted-foreground">
-                                            {po.requested_by}
-                                        </td>
-                                        <td className="py-3 text-foreground">
-                                            ₱{po.total_amount.toFixed(2)}
-                                        </td>
-                                        <td className="py-3 text-muted-foreground">
-                                            {po.created_at}
-                                        </td>
-                                        <td className="py-3 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        openViewModal(po)
-                                                    }
-                                                >
-                                                    View
-                                                </Button>
-                                                {po.status === 'pending' && (
-                                                    <>
+                    <Table className="min-w-[900px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>PO #</TableHead>
+                                <TableHead>Supplier</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Requested By</TableHead>
+                                <TableHead className="text-right">
+                                    Total Amount
+                                </TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredPurchaseOrders.map((po) => (
+                                <TableRow
+                                    key={po.id}
+                                    className="border-b last:border-0 odd:bg-muted/10"
+                                >
+                                    <TableCell className="font-medium text-foreground">
+                                        {po.po_number}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {po.supplier_name}
+                                    </TableCell>
+                                    <TableCell>{getStatusBadge(po.status)}</TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {po.requested_by}
+                                    </TableCell>
+                                    <TableCell className="text-right text-foreground">
+                                        ₱{po.total_amount.toFixed(2)}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                        {po.created_at}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => openViewModal(po)}
+                                            >
+                                                View
+                                            </Button>
+                                            {po.status === 'pending' && (
+                                                <>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            openEditModal(po)
+                                                        }
+                                                    >
+                                                        Edit
+                                                    </Button>
+                                                    {auth?.user?.is_admin && (
                                                         <Button
-                                                            variant="outline"
+                                                            variant="default"
                                                             size="sm"
                                                             onClick={() =>
-                                                                openEditModal(po)
-                                                            }
-                                                        >
-                                                            Edit
-                                                        </Button>
-                                                        {auth?.user?.is_admin && (
-                                                            <Button
-                                                                variant="default"
-                                                                size="sm"
-                                                                onClick={() =>
-                                                                    handleApprove(
-                                                                        po.id
-                                                                    )
-                                                                }
-                                                            >
-                                                                Approve
-                                                            </Button>
-                                                        )}
-                                                        <Button
-                                                            variant="destructive"
-                                                            size="sm"
-                                                            onClick={() =>
-                                                                handleDelete(
+                                                                handleApprove(
                                                                     po.id
                                                                 )
                                                             }
                                                         >
-                                                            Delete
+                                                            Approve
                                                         </Button>
-                                                    </>
-                                                )}
-                                                {(po.status === 'approved' || po.status === 'partially_received') && (
+                                                    )}
                                                     <Button
-                                                        variant="default"
+                                                        variant="destructive"
                                                         size="sm"
                                                         onClick={() =>
-                                                            handleReceive(po.id)
+                                                            handleDelete(po.id)
                                                         }
                                                     >
-                                                        {po.status === 'partially_received' ? 'Receive More' : 'Mark Received'}
+                                                        Delete
                                                     </Button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                                                </>
+                                            )}
+                                            {(po.status === 'approved' ||
+                                                po.status === 'partially_received') && (
+                                                <Button
+                                                    variant="default"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        handleReceive(po.id)
+                                                    }
+                                                >
+                                                    {po.status ===
+                                                    'partially_received'
+                                                        ? 'Receive More'
+                                                        : 'Mark Received'}
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                    {filteredPurchaseOrders.length === 0 && (
+                        <div className="border-t px-6 py-10 text-center text-sm text-muted-foreground">
+                            {searchQuery
+                                ? 'No purchase orders match your search.'
+                                : 'No purchase orders yet. Add your first purchase order to get started.'}
+                        </div>
+                    )}
+                </div>
+            </div>
 
             {/* Create Modal */}
             <Dialog open={isCreateOpen} onOpenChange={handleCreateToggle}>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>Create Purchase Order</DialogTitle>
-                        <DialogDescription>
-                            Add a new purchase order and select items to order.
-                        </DialogDescription>
+                        <DialogTitle>Add Purchase Order</DialogTitle>
                     </DialogHeader>
+                    <hr />
                     <form onSubmit={handleCreateSubmit} className="space-y-6">
                         <div className="grid gap-2">
                             <Label htmlFor="create-supplier">
@@ -501,7 +514,13 @@ export default function InventoryPurchaseOrders({
                                     createForm.setData('supplier_id', Number(value))
                                 }
                             >
-                                <SelectTrigger>
+                                <SelectTrigger
+                                    className={
+                                        createForm.errors.supplier_id
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
+                                >
                                     <SelectValue placeholder="Select supplier" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -522,12 +541,15 @@ export default function InventoryPurchaseOrders({
                                     )}
                                 </SelectContent>
                             </Select>
-                            <InputError
-                                message={createForm.errors.supplier_id}
-                            />
                         </div>
 
-                        <div className="space-y-3">
+                        <div
+                            className={`space-y-3 ${
+                                createForm.errors.items
+                                    ? 'rounded-md ring-1 ring-destructive/60'
+                                    : ''
+                            }`}
+                        >
                             <div className="flex items-center justify-between">
                                 <Label>Items</Label>
                                 <Button
@@ -641,7 +663,6 @@ export default function InventoryPurchaseOrders({
                                     </div>
                                 ))}
                             </div>
-                            <InputError message={createForm.errors.items} />
                         </div>
 
                         <div className="grid gap-2">
@@ -654,8 +675,12 @@ export default function InventoryPurchaseOrders({
                                 }
                                 placeholder="Additional notes or instructions"
                                 rows={3}
+                                className={
+                                    createForm.errors.notes
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : undefined
+                                }
                             />
-                            <InputError message={createForm.errors.notes} />
                         </div>
 
                         <div className="border-t pt-4">
@@ -693,10 +718,8 @@ export default function InventoryPurchaseOrders({
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Edit Purchase Order</DialogTitle>
-                        <DialogDescription>
-                            Update purchase order details (pending orders only).
-                        </DialogDescription>
                     </DialogHeader>
+                    <hr />
                     <form onSubmit={handleEditSubmit} className="space-y-6">
                         <div className="grid gap-2">
                             <Label htmlFor="edit-supplier">
@@ -708,7 +731,13 @@ export default function InventoryPurchaseOrders({
                                     editForm.setData('supplier_id', Number(value))
                                 }
                             >
-                                <SelectTrigger>
+                                <SelectTrigger
+                                    className={
+                                        editForm.errors.supplier_id
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : undefined
+                                    }
+                                >
                                     <SelectValue placeholder="Select supplier" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -729,12 +758,15 @@ export default function InventoryPurchaseOrders({
                                     )}
                                 </SelectContent>
                             </Select>
-                            <InputError
-                                message={editForm.errors.supplier_id}
-                            />
                         </div>
 
-                        <div className="space-y-3">
+                        <div
+                            className={`space-y-3 ${
+                                editForm.errors.items
+                                    ? 'rounded-md ring-1 ring-destructive/60'
+                                    : ''
+                            }`}
+                        >
                             <div className="flex items-center justify-between">
                                 <Label>Items</Label>
                                 <Button
@@ -847,7 +879,6 @@ export default function InventoryPurchaseOrders({
                                     </div>
                                 ))}
                             </div>
-                            <InputError message={editForm.errors.items} />
                         </div>
 
                         <div className="grid gap-2">
@@ -860,8 +891,12 @@ export default function InventoryPurchaseOrders({
                                 }
                                 placeholder="Additional notes or instructions"
                                 rows={3}
+                                className={
+                                    editForm.errors.notes
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : undefined
+                                }
                             />
-                            <InputError message={editForm.errors.notes} />
                         </div>
 
                         <div className="border-t pt-4">
@@ -897,12 +932,13 @@ export default function InventoryPurchaseOrders({
                 <DialogContent className="max-w-3xl">
                     <DialogHeader>
                         <DialogTitle>Purchase Order Details</DialogTitle>
-                        <DialogDescription>
-                            {viewingPO?.po_number}
-                        </DialogDescription>
                     </DialogHeader>
+                    <hr />
                     {viewingPO && (
                         <div className="space-y-4">
+                            <div className="text-sm text-muted-foreground">
+                                {viewingPO.po_number}
+                            </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <Label className="text-xs text-muted-foreground">
@@ -982,61 +1018,46 @@ export default function InventoryPurchaseOrders({
                                     Items
                                 </Label>
                                 <div className="border rounded-md overflow-hidden">
-                                    <table className="w-full text-sm">
-                                        <thead className="bg-muted">
-                                            <tr>
-                                                <th className="text-left py-2 px-3 font-medium">
-                                                    Item
-                                                </th>
-                                                <th className="text-right py-2 px-3 font-medium">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Item</TableHead>
+                                                <TableHead className="text-right">
                                                     Quantity
-                                                </th>
-                                                <th className="text-right py-2 px-3 font-medium">
+                                                </TableHead>
+                                                <TableHead className="text-right">
                                                     Unit Price
-                                                </th>
-                                                <th className="text-right py-2 px-3 font-medium">
+                                                </TableHead>
+                                                <TableHead className="text-right">
                                                     Subtotal
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
+                                                </TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
                                             {viewingPO.items.map((item) => (
-                                                <tr
-                                                    key={item.id}
-                                                    className="border-t"
-                                                >
-                                                    <td className="py-2 px-3">
+                                                <TableRow key={item.id}>
+                                                    <TableCell>
                                                         {item.item_name}
-                                                    </td>
-                                                    <td className="text-right py-2 px-3">
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
                                                         {item.quantity}
-                                                    </td>
-                                                    <td className="text-right py-2 px-3">
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
                                                         ₱{item.unit_price}
-                                                    </td>
-                                                    <td className="text-right py-2 px-3 font-medium">
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-medium">
                                                         ₱{(
                                                             item.quantity *
                                                             item.unit_price
                                                         ).toFixed(2)}
-                                                    </td>
-                                                </tr>
+                                                    </TableCell>
+                                                </TableRow>
                                             ))}
-                                        </tbody>
-                                        <tfoot className="border-t bg-muted">
-                                            <tr>
-                                                <td
-                                                    colSpan={3}
-                                                    className="text-right py-2 px-3 font-semibold"
-                                                >
-                                                    Total:
-                                                </td>
-                                                <td className="text-right py-2 px-3 font-semibold">
-                                                    ₱{viewingPO.total_amount.toFixed(2)}
-                                                </td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
+                                        </TableBody>
+                                    </Table>
+                                    <div className="border-t bg-muted/50 px-4 py-2 text-right text-sm font-semibold">
+                                        Total: ₱{viewingPO.total_amount.toFixed(2)}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1054,13 +1075,17 @@ export default function InventoryPurchaseOrders({
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Receive Items</DialogTitle>
-                        <DialogDescription>
-                            Enter the actual quantity received for each item. Items not fully received will keep the PO open.
-                        </DialogDescription>
                     </DialogHeader>
+                    <hr />
                     {receivingPO && (
                         <form onSubmit={handleReceiveSubmit} className="space-y-6">
-                            <div className="space-y-2">
+                            <div
+                                className={`space-y-2 ${
+                                    receiveForm.errors.items
+                                        ? 'rounded-md ring-1 ring-destructive/60'
+                                        : ''
+                                }`}
+                            >
                                 <div className="grid grid-cols-12 gap-2 text-sm font-medium border-b pb-2">
                                     <div className="col-span-5">Item</div>
                                     <div className="col-span-2 text-right">Ordered</div>
@@ -1101,7 +1126,6 @@ export default function InventoryPurchaseOrders({
                                     );
                                 })}
                             </div>
-                            <InputError message={receiveForm.errors.items} />
 
                             <div className="border-t pt-4 space-y-2 text-sm">
                                 <p className="text-muted-foreground">

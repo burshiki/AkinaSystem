@@ -3,16 +3,70 @@
 namespace App\Http\Controllers;
 
 use Inertia\Inertia;
+use App\Models\CashRegisterSession;
+use App\Models\Customer;
+use App\Models\Item;
+use App\Models\ItemCategory;
+use App\Models\ItemLog;
+use App\Models\Sale;
+use App\Models\SaleItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PosController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        return Inertia::render('Pos/Index');
+        $openSession = CashRegisterSession::query()
+            ->where('status', 'open')
+            ->where('opened_by', $request->user()->id)
+            ->exists();
+
+        if (!$openSession) {
+            return redirect()->route('cash-register.index')->with('error', 'You do not have an open register session. Please open the register first.');
+        }
+
+        $items = Item::query()
+            ->with('category')
+            ->where('stock', '>', 0)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Item $item) => [
+                'id' => $item->id,
+                'name' => $item->name,
+                'category' => $item->category?->name ?? 'Uncategorized',
+                'category_id' => $item->category_id,
+                'price' => $item->price,
+                'stock' => $item->stock,
+            ]);
+
+        $categories = ItemCategory::query()
+            ->orderBy('name')
+            ->get()
+            ->map(fn (ItemCategory $category) => [
+                'id' => $category->id,
+                'name' => $category->name,
+            ]);
+
+        $customers = Customer::query()
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Customer $customer) => [
+                'id' => $customer->id,
+                'name' => $customer->name,
+                'email' => $customer->email,
+                'phone' => $customer->phone,
+                'debt_balance' => $customer->debt_balance,
+            ]);
+
+        return Inertia::render('Pos/Index', [
+            'items' => $items,
+            'categories' => $categories,
+            'customers' => $customers,
+        ]);
     }
 
     /**
@@ -28,7 +82,96 @@ class PosController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'customer_id' => ['nullable', 'exists:customers,id'],
+            'payment_method' => ['required', 'in:cash,bank,credit'],
+            'amount_paid' => ['required_if:payment_method,cash', 'nullable', 'numeric', 'min:0'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.item_id' => ['required', 'exists:items,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.price' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        // Require customer for credit payments
+        if ($validated['payment_method'] === 'credit' && !$validated['customer_id']) {
+            return back()->withErrors(['customer_id' => 'A customer must be selected for credit/debt payments.']);
+        }
+
+        $openSession = CashRegisterSession::query()
+            ->where('status', 'open')
+            ->where('opened_by', $request->user()->id)
+            ->latest('opened_at')
+            ->first();
+
+        if (!$openSession) {
+            return back()->withErrors(['error' => 'No open cash register session']);
+        }
+
+        $subtotal = collect($validated['items'])->sum(fn ($item) => $item['price'] * $item['quantity']);
+        $total = $subtotal;
+
+        $amountPaid = $validated['payment_method'] === 'cash'
+            ? (float) $validated['amount_paid']
+            : $total;
+
+        $changeGiven = $validated['payment_method'] === 'cash'
+            ? max(0, $amountPaid - $total)
+            : 0;
+
+        DB::transaction(function () use ($validated, $request, $openSession, $subtotal, $total, $amountPaid, $changeGiven) {
+            $sale = Sale::create([
+                'customer_id' => $validated['customer_id'],
+                'user_id' => $request->user()->id,
+                'cash_register_session_id' => $openSession->id,
+                'payment_method' => $validated['payment_method'],
+                'subtotal' => $subtotal,
+                'total' => $total,
+                'amount_paid' => $amountPaid,
+                'change_given' => $changeGiven,
+                'status' => 'completed',
+            ]);
+
+            foreach ($validated['items'] as $itemData) {
+                $item = Item::findOrFail($itemData['item_id']);
+                $quantity = $itemData['quantity'];
+                $price = $itemData['price'];
+                $itemSubtotal = $price * $quantity;
+
+                SaleItem::create([
+                    'sale_id' => $sale->id,
+                    'item_id' => $item->id,
+                    'quantity' => $quantity,
+                    'price' => $price,
+                    'subtotal' => $itemSubtotal,
+                ]);
+
+                $oldStock = $item->stock;
+                $newStock = $oldStock - $quantity;
+                $item->update(['stock' => $newStock]);
+
+                ItemLog::logStockChange(
+                    itemId: $item->id,
+                    type: 'sale',
+                    quantityChange: -$quantity,
+                    oldStock: $oldStock,
+                    newStock: $newStock,
+                    description: "Sold via POS (Sale #{$sale->id})",
+                    userId: $request->user()->id,
+                    referenceType: Sale::class,
+                    referenceId: $sale->id
+                );
+            }
+
+            if ($validated['payment_method'] === 'cash') {
+                $openSession->increment('cash_sales', $total);
+                $openSession->increment('expected_cash', $total);
+            } elseif ($validated['payment_method'] === 'credit' && $validated['customer_id']) {
+                // Increment customer's debt balance
+                Customer::where('id', $validated['customer_id'])->increment('debt_balance', $total);
+            }
+        });
+
+        return redirect()->route('pos.index');
     }
 
     /**

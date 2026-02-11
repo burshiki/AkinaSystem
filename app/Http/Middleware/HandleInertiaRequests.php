@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\CashRegisterSession;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -35,6 +36,13 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $hasOpenRegister = $request->user() 
+            ? CashRegisterSession::query()
+                ->where('status', 'open')
+                ->where('opened_by', $request->user()->id)
+                ->exists()
+            : false;
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
@@ -43,6 +51,9 @@ class HandleInertiaRequests extends Middleware
                 'permissions' => $request->user()?->getPermissionNames() ?? [],
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+            'register' => [
+                'status' => $hasOpenRegister ? 'open' : 'closed',
+            ],
         ];
     }
 }
