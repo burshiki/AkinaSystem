@@ -7,18 +7,42 @@ use App\Models\Item;
 use App\Models\ItemLog;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
+use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PurchaseOrderController extends Controller
 {
+    public function badgeCount(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json(['count' => 0]);
+        }
+
+        if ($user->is_admin) {
+            $count = PurchaseOrder::query()
+                ->where('status', 'pending')
+                ->count();
+        } else {
+            $count = PurchaseOrder::query()
+                ->where('requested_by', $user->id)
+                ->whereIn('status', ['approved', 'partially_received'])
+                ->count();
+        }
+
+        return response()->json(['count' => $count]);
+    }
     public function index(): Response
     {
         $purchaseOrders = PurchaseOrder::with(['supplier', 'requestedBy', 'approvedBy', 'items.item'])
             ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(fn($po) => [
+            ->paginate(10)
+            ->withQueryString()
+            ->through(fn($po) => [
                 'id' => $po->id,
                 'po_number' => $po->po_number,
                 'supplier_id' => $po->supplier_id,

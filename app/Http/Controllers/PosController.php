@@ -164,7 +164,6 @@ class PosController extends Controller
 
             if ($validated['payment_method'] === 'cash') {
                 $openSession->increment('cash_sales', $total);
-                $openSession->increment('expected_cash', $total);
             } elseif ($validated['payment_method'] === 'credit' && $validated['customer_id']) {
                 // Increment customer's debt balance
                 Customer::where('id', $validated['customer_id'])->increment('debt_balance', $total);

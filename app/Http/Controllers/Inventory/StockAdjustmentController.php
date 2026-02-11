@@ -15,8 +15,9 @@ class StockAdjustmentController extends Controller
     {
         $adjustments = StockAdjustment::with(['item', 'user'])
             ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($adjustment) {
+            ->paginate(10)
+            ->withQueryString()
+            ->through(function ($adjustment) {
                 return [
                     'id' => $adjustment->id,
                     'item_id' => $adjustment->item_id,

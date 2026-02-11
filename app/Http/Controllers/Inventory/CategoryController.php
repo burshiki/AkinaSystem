@@ -16,8 +16,9 @@ class CategoryController extends Controller
         $categories = ItemCategory::query()
             ->withCount('items')
             ->orderBy('name')
-            ->get()
-            ->map(fn (ItemCategory $category) => [
+            ->paginate(10)
+            ->withQueryString()
+            ->through(fn (ItemCategory $category) => [
                 'id' => $category->id,
                 'name' => $category->name,
                 'items_count' => $category->items_count,

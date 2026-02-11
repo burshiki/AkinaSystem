@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\CashRegisterSession;
+use App\Models\Customer;
 use App\Models\Item;
+use App\Models\Sale;
 use App\Models\SaleItem;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,13 +45,20 @@ class CashRegisterController extends Controller
                 ])
             : [];
 
+        // Calculate expected cash fresh to ensure accuracy
+        $expectedCash = $session ? (
+            (float)$session->opening_balance + 
+            (float)$session->cash_sales + 
+            (float)$session->debt_repaid
+        ) : 0;
+
         return Inertia::render('CashRegister/Index', [
             'session' => $session ? [
                 'id' => $session->id,
                 'opening_balance' => $session->opening_balance,
                 'cash_sales' => $session->cash_sales,
                 'debt_repaid' => $session->debt_repaid,
-                'expected_cash' => $session->expected_cash,
+                'expected_cash' => $expectedCash,
                 'actual_cash' => $session->actual_cash,
                 'opened_at' => $session->opened_at?->format('M d, Y H:i'),
             ] : null,
@@ -86,6 +95,77 @@ class CashRegisterController extends Controller
         return redirect()->route('cash-register.index');
     }
 
+    public function getShiftReview(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $session = CashRegisterSession::query()
+            ->with('opener')
+            ->where('status', 'open')
+            ->where('opened_by', $request->user()->id)
+            ->latest('opened_at')
+            ->first();
+
+        if (!$session) {
+            return response()->json(['error' => 'No active session found'], 404);
+        }
+
+        // Get all sales for this session
+        $sales = Sale::query()
+            ->where('cash_register_session_id', $session->id)
+            ->with('customer')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn ($sale) => [
+                'id' => $sale->id,
+                'customer' => $sale->customer?->name ?? 'Walk-in Customer',
+                'payment_method' => $sale->payment_method,
+                'total' => number_format($sale->total, 2),
+                'created_at' => $sale->created_at?->format('M d, Y H:i'),
+            ]);
+
+        // Get item sales summary with details
+        $saleIds = Sale::where('cash_register_session_id', $session->id)->pluck('id');
+        
+        $itemSales = SaleItem::query()
+            ->whereIn('sale_id', $saleIds)
+            ->join('items', 'sale_items.item_id', '=', 'items.id')
+            ->select(
+                'items.id',
+                'items.name',
+                DB::raw('SUM(sale_items.quantity) as quantity'),
+                DB::raw('SUM(sale_items.subtotal) as subtotal')
+            )
+            ->groupBy('items.id', 'items.name')
+            ->orderByDesc('subtotal')
+            ->get()
+            ->map(fn ($item) => [
+                'id' => $item->id,
+                'name' => $item->name,
+                'quantity' => (int) $item->quantity,
+                'unit_price' => $item->quantity > 0 ? number_format($item->subtotal / $item->quantity, 2) : '0.00',
+                'subtotal' => number_format($item->subtotal, 2),
+            ]);
+
+        // Calculate expected cash fresh to ensure accuracy
+        $expectedCash = (float)$session->opening_balance + 
+                        (float)$session->cash_sales + 
+                        (float)$session->debt_repaid;
+
+        return response()->json([
+            'session' => [
+                'id' => $session->id,
+                'opening_balance' => number_format($session->opening_balance, 2),
+                'cash_sales' => number_format($session->cash_sales, 2),
+                'debt_repaid' => number_format($session->debt_repaid, 2),
+                'expected_cash' => number_format($expectedCash, 2),
+                'opened_at' => $session->opened_at?->format('M d, Y H:i A'),
+                'opened_by' => $session->opener?->name ?? 'Unknown',
+            ],
+            'sales' => $sales,
+            'itemSales' => $itemSales,
+            'totalSales' => $sales->count(),
+        ]);
+    }
+
     public function close(Request $request): RedirectResponse
     {
         $session = CashRegisterSession::query()
@@ -104,6 +184,35 @@ class CashRegisterController extends Controller
 
         $session->update([
             'actual_cash' => $validated['actual_cash'],
+            'status' => 'closed',
+            'closed_by' => $request->user()->id,
+            'closed_at' => now(),
+        ]);
+
+        return redirect()->route('cash-register.index');
+    }
+
+    public function finalize(Request $request): RedirectResponse
+    {
+        $session = CashRegisterSession::query()
+            ->where('status', 'open')
+            ->where('opened_by', $request->user()->id)
+            ->latest('opened_at')
+            ->first();
+
+        if (!$session) {
+            return redirect()->route('cash-register.index')->withErrors(['error' => 'No active session found']);
+        }
+
+        $validated = $request->validate([
+            'actual_cash' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $actualCash = (float) $validated['actual_cash'];
+        $expectedCash = (float) $session->expected_cash;
+
+        $session->update([
+            'actual_cash' => $actualCash,
             'status' => 'closed',
             'closed_by' => $request->user()->id,
             'closed_at' => now(),

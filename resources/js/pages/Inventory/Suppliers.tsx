@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
@@ -42,7 +42,14 @@ type SupplierRow = {
 };
 
 type PageProps = {
-    suppliers: SupplierRow[];
+    suppliers: {
+        data: SupplierRow[];
+        links: Array<{
+            url: string | null;
+            label: string;
+            active: boolean;
+        }>;
+    };
 };
 
 export default function InventorySuppliers({ suppliers }: PageProps) {
@@ -74,10 +81,10 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
     const filteredSuppliers = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
         if (!query) {
-            return suppliers;
+            return suppliers.data;
         }
 
-        return suppliers.filter((supplier) =>
+        return suppliers.data.filter((supplier) =>
             [
                 supplier.name,
                 supplier.contact_person ?? '',
@@ -89,6 +96,19 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
                 .includes(query)
         );
     }, [searchQuery, suppliers]);
+
+    // Auto-refresh to sync data across users
+    useEffect(() => {
+        const interval = setInterval(() => {
+            // Only refresh if page is visible and no modals are open
+            if (document.visibilityState === 'visible' && 
+                !isCreateOpen && !isEditOpen) {
+                router.reload({ only: ['suppliers'] });
+            }
+        }, 5000); // Refresh every 5 seconds
+
+        return () => clearInterval(interval);
+    }, [isCreateOpen, isEditOpen]);
 
     const handleCreateToggle = (open: boolean) => {
         setIsCreateOpen(open);
@@ -241,6 +261,40 @@ export default function InventorySuppliers({ suppliers }: PageProps) {
                             {searchQuery
                                 ? 'No suppliers match your search.'
                                 : 'No suppliers found. Add your first supplier to get started.'}
+                        </div>
+                    )}
+                    {suppliers.links.length > 1 && (
+                        <div className="border-t px-6 py-4">
+                            <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+                                {suppliers.links.map((link) => {
+                                    if (!link.url) {
+                                        return (
+                                            <span
+                                                key={link.label}
+                                                className="rounded-md border px-3 py-1 text-muted-foreground"
+                                                dangerouslySetInnerHTML={{
+                                                    __html: link.label,
+                                                }}
+                                            />
+                                        );
+                                    }
+
+                                    return (
+                                        <Link
+                                            key={link.label}
+                                            href={link.url}
+                                            className={
+                                                link.active
+                                                    ? 'rounded-md border border-primary bg-primary px-3 py-1 text-primary-foreground'
+                                                    : 'rounded-md border px-3 py-1 text-foreground hover:bg-muted'
+                                            }
+                                            dangerouslySetInnerHTML={{
+                                                __html: link.label,
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>

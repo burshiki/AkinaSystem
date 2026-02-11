@@ -1,6 +1,6 @@
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem, SharedData } from '@/types';
 import { Badge } from '@/components/ui/badge';
@@ -59,7 +59,14 @@ type ItemOption = {
 export default function InventoryStockAdjustments() {
     const { adjustments, items } = usePage<
         SharedData & {
-            adjustments: StockAdjustmentRow[];
+            adjustments: {
+                data: StockAdjustmentRow[];
+                links: Array<{
+                    url: string | null;
+                    label: string;
+                    active: boolean;
+                }>;
+            };
             items: ItemOption[];
         }
     >().props;
@@ -82,10 +89,10 @@ export default function InventoryStockAdjustments() {
     const filteredAdjustments = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
         if (!query) {
-            return adjustments;
+            return adjustments.data;
         }
 
-        return adjustments.filter((adjustment) =>
+        return adjustments.data.filter((adjustment) =>
             [
                 adjustment.item_name,
                 adjustment.reason_label,
@@ -97,6 +104,19 @@ export default function InventoryStockAdjustments() {
                 .includes(query)
         );
     }, [adjustments, searchQuery]);
+
+    // Auto-refresh to sync data across users
+    useEffect(() => {
+        const interval = setInterval(() => {
+            // Only refresh if page is visible and no modals are open
+            if (document.visibilityState === 'visible' && 
+                !isCreateOpen) {
+                router.reload({ only: ['adjustments', 'items'] });
+            }
+        }, 5000); // Refresh every 5 seconds
+
+        return () => clearInterval(interval);
+    }, [isCreateOpen]);
 
     const handleCreateToggle = (open: boolean) => {
         setIsCreateOpen(open);
@@ -224,6 +244,40 @@ export default function InventoryStockAdjustments() {
                             {searchQuery
                                 ? 'No adjustments match your search.'
                                 : 'No stock adjustments recorded yet.'}
+                        </div>
+                    )}
+                    {adjustments.links.length > 1 && (
+                        <div className="border-t px-6 py-4">
+                            <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+                                {adjustments.links.map((link) => {
+                                    if (!link.url) {
+                                        return (
+                                            <span
+                                                key={link.label}
+                                                className="rounded-md border px-3 py-1 text-muted-foreground"
+                                                dangerouslySetInnerHTML={{
+                                                    __html: link.label,
+                                                }}
+                                            />
+                                        );
+                                    }
+
+                                    return (
+                                        <Link
+                                            key={link.label}
+                                            href={link.url}
+                                            className={
+                                                link.active
+                                                    ? 'rounded-md border border-primary bg-primary px-3 py-1 text-primary-foreground'
+                                                    : 'rounded-md border px-3 py-1 text-foreground hover:bg-muted'
+                                            }
+                                            dangerouslySetInnerHTML={{
+                                                __html: link.label,
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>

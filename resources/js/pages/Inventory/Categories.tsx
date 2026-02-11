@@ -1,4 +1,4 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
@@ -36,7 +36,14 @@ type CategoryRow = {
 };
 
 type PageProps = {
-    categories: CategoryRow[];
+    categories: {
+        data: CategoryRow[];
+        links: Array<{
+            url: string | null;
+            label: string;
+            active: boolean;
+        }>;
+    };
 };
 
 export default function InventoryCategories({ categories }: PageProps) {
@@ -56,10 +63,10 @@ export default function InventoryCategories({ categories }: PageProps) {
     const filteredCategories = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
         if (!query) {
-            return categories;
+            return categories.data;
         }
 
-        return categories.filter((category) =>
+        return categories.data.filter((category) =>
             category.name.toLowerCase().includes(query)
         );
     }, [categories, searchQuery]);
@@ -93,6 +100,19 @@ export default function InventoryCategories({ categories }: PageProps) {
         setEditingCategory(category);
         setIsEditOpen(true);
     };
+
+    // Auto-refresh to sync data across users
+    useEffect(() => {
+        const interval = setInterval(() => {
+            // Only refresh if page is visible and no modals are open
+            if (document.visibilityState === 'visible' && 
+                !isCreateOpen && !isEditOpen) {
+                router.reload({ only: ['categories'] });
+            }
+        }, 5000); // Refresh every 5 seconds
+
+        return () => clearInterval(interval);
+    }, [isCreateOpen, isEditOpen]);
 
     useEffect(() => {
         if (!editingCategory) {
@@ -199,6 +219,40 @@ export default function InventoryCategories({ categories }: PageProps) {
                             {searchQuery
                                 ? 'No categories match your search.'
                                 : 'No categories found. Add your first category to get started.'}
+                        </div>
+                    )}
+                    {categories.links.length > 1 && (
+                        <div className="border-t px-6 py-4">
+                            <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+                                {categories.links.map((link) => {
+                                    if (!link.url) {
+                                        return (
+                                            <span
+                                                key={link.label}
+                                                className="rounded-md border px-3 py-1 text-muted-foreground"
+                                                dangerouslySetInnerHTML={{
+                                                    __html: link.label,
+                                                }}
+                                            />
+                                        );
+                                    }
+
+                                    return (
+                                        <Link
+                                            key={link.label}
+                                            href={link.url}
+                                            className={
+                                                link.active
+                                                    ? 'rounded-md border border-primary bg-primary px-3 py-1 text-primary-foreground'
+                                                    : 'rounded-md border px-3 py-1 text-foreground hover:bg-muted'
+                                            }
+                                            dangerouslySetInnerHTML={{
+                                                __html: link.label,
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>

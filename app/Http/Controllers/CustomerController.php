@@ -84,7 +84,6 @@ class CustomerController extends Controller
 
         if ($openSession) {
             $openSession->increment('debt_repaid', $validated['amount']);
-            $openSession->increment('expected_cash', $validated['amount']);
         }
 
         return redirect()->route('customers.index');

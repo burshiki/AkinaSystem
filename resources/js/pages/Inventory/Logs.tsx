@@ -1,4 +1,4 @@
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem, SharedData } from '@/types';
@@ -48,13 +48,21 @@ type ItemOption = {
 export default function InventoryLogs() {
     const pageProps = usePage<
         SharedData & {
-            logs?: ItemLogRow[];
+            logs?: {
+                data: ItemLogRow[];
+                links: Array<{
+                    url: string | null;
+                    label: string;
+                    active: boolean;
+                }>;
+            };
             items?: ItemOption[];
             selectedItemId?: number | null;
         }
     >().props;
 
-    const logs = pageProps.logs || [];
+    const logs = pageProps.logs?.data || [];
+    const logLinks = pageProps.logs?.links || [];
     const items = pageProps.items || [];
     const selectedItemId = pageProps.selectedItemId || null;
 
@@ -185,6 +193,40 @@ export default function InventoryLogs() {
                             {filterItemId
                                 ? 'No logs found for this item.'
                                 : 'No stock movements recorded yet.'}
+                        </div>
+                    )}
+                    {logLinks.length > 1 && (
+                        <div className="border-t px-6 py-4">
+                            <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+                                {logLinks.map((link) => {
+                                    if (!link.url) {
+                                        return (
+                                            <span
+                                                key={link.label}
+                                                className="rounded-md border px-3 py-1 text-muted-foreground"
+                                                dangerouslySetInnerHTML={{
+                                                    __html: link.label,
+                                                }}
+                                            />
+                                        );
+                                    }
+
+                                    return (
+                                        <Link
+                                            key={link.label}
+                                            href={link.url}
+                                            className={
+                                                link.active
+                                                    ? 'rounded-md border border-primary bg-primary px-3 py-1 text-primary-foreground'
+                                                    : 'rounded-md border px-3 py-1 text-foreground hover:bg-muted'
+                                            }
+                                            dangerouslySetInnerHTML={{
+                                                __html: link.label,
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>

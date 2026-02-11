@@ -1,4 +1,4 @@
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -74,7 +74,14 @@ type SupplierOption = {
 };
 
 type PageProps = {
-    purchaseOrders: PurchaseOrderRow[];
+    purchaseOrders: {
+        data: PurchaseOrderRow[];
+        links: Array<{
+            url: string | null;
+            label: string;
+            active: boolean;
+        }>;
+    };
     items: ItemOption[];
     suppliers: SupplierOption[];
 };
@@ -123,10 +130,10 @@ export default function InventoryPurchaseOrders({
     const filteredPurchaseOrders = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
         if (!query) {
-            return purchaseOrders;
+            return purchaseOrders.data;
         }
 
-        return purchaseOrders.filter((po) => {
+        return purchaseOrders.data.filter((po) => {
             const status = po.status.replace('_', ' ');
             return (
                 po.po_number.toLowerCase().includes(query) ||
@@ -136,6 +143,7 @@ export default function InventoryPurchaseOrders({
             );
         });
     }, [purchaseOrders, searchQuery]);
+
 
     const handleCreateToggle = (open: boolean) => {
         setIsCreateOpen(open);
@@ -205,11 +213,31 @@ export default function InventoryPurchaseOrders({
 
     // Auto-refresh to sync data across users
     useEffect(() => {
+        const syncBadgeCount = async () => {
+            try {
+                const response = await fetch(
+                    '/inventory/purchase-orders/badge-count'
+                );
+                if (!response.ok) return;
+                const data = await response.json();
+                if (typeof data.count === 'number') {
+                    window.dispatchEvent(
+                        new CustomEvent('purchase-orders-badge', {
+                            detail: { count: data.count },
+                        })
+                    );
+                }
+            } catch (error) {
+                console.error('Error syncing PO badge count:', error);
+            }
+        };
+
         const interval = setInterval(() => {
             // Only refresh if page is visible and no modals are open
             if (document.visibilityState === 'visible' && 
                 !isCreateOpen && !isEditOpen && !isViewOpen && !isReceiveOpen) {
-                router.reload({ only: ['purchaseOrders'], preserveScroll: true });
+                router.reload({ only: ['purchaseOrders'] });
+                void syncBadgeCount();
             }
         }, 5000); // Refresh every 5 seconds
 
@@ -248,7 +276,7 @@ export default function InventoryPurchaseOrders({
     };
 
     const handleReceive = (poId: number) => {
-        const po = purchaseOrders.find(p => p.id === poId);
+        const po = purchaseOrders.data.find(p => p.id === poId);
         if (po) {
             openReceiveModal(po);
         }
@@ -491,6 +519,40 @@ export default function InventoryPurchaseOrders({
                             {searchQuery
                                 ? 'No purchase orders match your search.'
                                 : 'No purchase orders yet. Add your first purchase order to get started.'}
+                        </div>
+                    )}
+                    {purchaseOrders.links.length > 1 && (
+                        <div className="border-t px-6 py-4">
+                            <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+                                {purchaseOrders.links.map((link) => {
+                                    if (!link.url) {
+                                        return (
+                                            <span
+                                                key={link.label}
+                                                className="rounded-md border px-3 py-1 text-muted-foreground"
+                                                dangerouslySetInnerHTML={{
+                                                    __html: link.label,
+                                                }}
+                                            />
+                                        );
+                                    }
+
+                                    return (
+                                        <Link
+                                            key={link.label}
+                                            href={link.url}
+                                            className={
+                                                link.active
+                                                    ? 'rounded-md border border-primary bg-primary px-3 py-1 text-primary-foreground'
+                                                    : 'rounded-md border px-3 py-1 text-foreground hover:bg-muted'
+                                            }
+                                            dangerouslySetInnerHTML={{
+                                                __html: link.label,
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>

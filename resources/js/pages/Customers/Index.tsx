@@ -130,6 +130,19 @@ export default function CustomersIndex({ customers }: PageProps) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editingCustomer]);
 
+    // Auto-refresh to sync data across users
+    useEffect(() => {
+        const interval = setInterval(() => {
+            // Only refresh if page is visible and no modals are open
+            if (document.visibilityState === 'visible' && 
+                !isCreateOpen && !isEditOpen && !isPayDebtOpen) {
+                router.reload({ only: ['customers'] });
+            }
+        }, 5000); // Refresh every 5 seconds
+
+        return () => clearInterval(interval);
+    }, [isCreateOpen, isEditOpen, isPayDebtOpen]);
+
     const handleCreateSubmit = (event: FormEvent) => {
         event.preventDefault();
         createForm.post('/customers', {

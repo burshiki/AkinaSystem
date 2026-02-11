@@ -14,6 +14,7 @@ use App\Http\Controllers\Inventory\ItemLogController;
 use App\Http\Controllers\Inventory\AssemblyController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CashRegisterController;
+use App\Http\Controllers\SalesHistoryController;
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
@@ -38,6 +39,31 @@ Route::post('cash-register/open', [CashRegisterController::class, 'open'])
 Route::post('cash-register/close', [CashRegisterController::class, 'close'])
     ->middleware(['auth', 'verified', 'permission:access drawer'])
     ->name('cash-register.close');
+
+Route::get('cash-register/shift-review', [CashRegisterController::class, 'getShiftReview'])
+    ->middleware(['auth', 'verified', 'permission:access drawer'])
+    ->name('cash-register.shift-review');
+
+Route::post('cash-register/finalize', [CashRegisterController::class, 'finalize'])
+    ->middleware(['auth', 'verified', 'permission:access drawer'])
+    ->name('cash-register.finalize');
+
+Route::prefix('sales-history')
+    ->middleware(['auth', 'verified', 'permission:access sales-history'])
+    ->group(function () {
+        Route::get('/', [SalesHistoryController::class, 'index'])
+            ->name('sales-history.index');
+        Route::get('{session}', [SalesHistoryController::class, 'show'])
+            ->name('sales-history.show');
+        Route::post('{session}/request-access', [SalesHistoryController::class, 'requestAccess'])
+            ->name('sales-history.request-access');
+        Route::post('requests/{accessRequest}/approve', [SalesHistoryController::class, 'approve'])
+            ->name('sales-history.approve');
+        Route::post('requests/{accessRequest}/deny', [SalesHistoryController::class, 'deny'])
+            ->name('sales-history.deny');
+        Route::put('{session}', [SalesHistoryController::class, 'update'])
+            ->name('sales-history.update');
+    });
 
 Route::resource('users', UserController::class)
     ->except(['show'])
@@ -75,6 +101,8 @@ Route::prefix('inventory')
             ]);
 
         Route::middleware('permission:access inventory-purchase-orders')->group(function () {
+            Route::get('purchase-orders/badge-count', [PurchaseOrderController::class, 'badgeCount'])
+                ->name('inventory.purchase-orders.badge-count');
             Route::resource('purchase-orders', PurchaseOrderController::class)
                 ->except(['show', 'create', 'edit'])
                 ->names([

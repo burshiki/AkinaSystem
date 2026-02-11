@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState, useEffect } from 'react';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { router } from '@inertiajs/react';
 import AppLayout from '@/layouts/app-layout';
 import { Button } from '@/components/ui/button';
@@ -62,7 +62,14 @@ interface Assembly {
 }
 
 interface PageProps {
-    assemblies: Assembly[];
+    assemblies: {
+        data: Assembly[];
+        links: Array<{
+            url: string | null;
+            label: string;
+            active: boolean;
+        }>;
+    };
     items: Item[];
 }
 
@@ -73,7 +80,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function InventoryAssembly() {
     const { props } = usePage<PageProps>();
-    const [assemblies, setAssemblies] = useState(props.assemblies || []);
+    const [assemblies, setAssemblies] = useState(props.assemblies?.data || []);
     const [items] = useState(props.items || []);
     const [isOpen, setIsOpen] = useState(false);
     const [isViewOpen, setIsViewOpen] = useState(false);
@@ -85,7 +92,7 @@ export default function InventoryAssembly() {
     );
 
     useEffect(() => {
-        setAssemblies(props.assemblies || []);
+        setAssemblies(props.assemblies?.data || []);
     }, [props.assemblies]);
 
     // Handle flash messages
@@ -97,6 +104,19 @@ export default function InventoryAssembly() {
             setFlashMessage({ type: 'error', message: props.flash.error });
         }
     }, [props.flash]);
+
+    // Auto-refresh to sync data across users
+    useEffect(() => {
+        const interval = setInterval(() => {
+            // Only refresh if page is visible and no modals are open
+            if (document.visibilityState === 'visible' && 
+                !isOpen && !isViewOpen) {
+                router.reload({ only: ['assemblies', 'items'] });
+            }
+        }, 5000); // Refresh every 5 seconds
+
+        return () => clearInterval(interval);
+    }, [isOpen, isViewOpen]);
 
     const [formData, setFormData] = useState({
         final_item_id: '',
@@ -534,6 +554,40 @@ export default function InventoryAssembly() {
                             {searchQuery
                                 ? 'No assemblies match your search.'
                                 : 'No assemblies created yet.'}
+                        </div>
+                    )}
+                    {props.assemblies.links.length > 1 && (
+                        <div className="border-t px-6 py-4">
+                            <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+                                {props.assemblies.links.map((link) => {
+                                    if (!link.url) {
+                                        return (
+                                            <span
+                                                key={link.label}
+                                                className="rounded-md border px-3 py-1 text-muted-foreground"
+                                                dangerouslySetInnerHTML={{
+                                                    __html: link.label,
+                                                }}
+                                            />
+                                        );
+                                    }
+
+                                    return (
+                                        <Link
+                                            key={link.label}
+                                            href={link.url}
+                                            className={
+                                                link.active
+                                                    ? 'rounded-md border border-primary bg-primary px-3 py-1 text-primary-foreground'
+                                                    : 'rounded-md border px-3 py-1 text-foreground hover:bg-muted'
+                                            }
+                                            dangerouslySetInnerHTML={{
+                                                __html: link.label,
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </div>
                         </div>
                     )}
                 </div>

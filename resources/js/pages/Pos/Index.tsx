@@ -1,6 +1,6 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { Minus, Plus, Search, Trash2, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -111,6 +111,18 @@ export default function PosIndex({ items, categories, customers }: PageProps) {
     const cartTotal = useMemo(() => {
         return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     }, [cart]);
+
+    // Auto-refresh to sync data across users
+    useEffect(() => {
+        const interval = setInterval(() => {
+            // Only refresh if page is visible and payment modal is not open
+            if (document.visibilityState === 'visible' && !isPaymentOpen) {
+                router.reload({ only: ['items', 'categories', 'customers'] });
+            }
+        }, 5000); // Refresh every 5 seconds
+
+        return () => clearInterval(interval);
+    }, [isPaymentOpen]);
 
     const addToCart = (product: ItemRow) => {
         const existingItem = cart.find((item) => item.id === product.id);

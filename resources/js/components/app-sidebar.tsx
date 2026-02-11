@@ -1,4 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChartNoAxesCombinedIcon, HistoryIcon, LayoutGrid, PcCaseIcon, PiggyBankIcon, SettingsIcon, UsersIcon, UsersRoundIcon, WarehouseIcon } from 'lucide-react';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
@@ -81,7 +82,7 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Sales History',
-        href: dashboard(),
+        href: '/sales-history',
         icon: HistoryIcon,
         permission: 'access sales-history',
     },
@@ -117,6 +118,58 @@ const footerNavItems: NavItem[] = [
 export function AppSidebar() {
     const { auth } = usePage<SharedData>().props;
     const permissionSet = new Set(auth?.permissions ?? []);
+    const [purchaseOrderBadgeCount, setPurchaseOrderBadgeCount] = useState(0);
+
+    const canSeePurchaseOrders = permissionSet.has(
+        'access inventory-purchase-orders'
+    );
+
+    const fetchPurchaseOrderBadgeCount = useCallback(async () => {
+        if (!canSeePurchaseOrders) return;
+
+        try {
+            const response = await fetch('/inventory/purchase-orders/badge-count');
+            if (!response.ok) return;
+            const data = await response.json();
+            setPurchaseOrderBadgeCount(
+                typeof data.count === 'number' ? data.count : 0
+            );
+        } catch (error) {
+            console.error('Error fetching purchase order badge count:', error);
+        }
+    }, [canSeePurchaseOrders]);
+
+    useEffect(() => {
+        if (!canSeePurchaseOrders) return;
+
+        fetchPurchaseOrderBadgeCount();
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                fetchPurchaseOrderBadgeCount();
+            }
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [canSeePurchaseOrders, fetchPurchaseOrderBadgeCount]);
+
+    useEffect(() => {
+        if (!canSeePurchaseOrders) return;
+
+        const handleBadgeUpdate = (event: Event) => {
+            const customEvent = event as CustomEvent<{ count: number }>;
+            const nextCount = customEvent.detail?.count;
+            if (typeof nextCount === 'number') {
+                setPurchaseOrderBadgeCount(nextCount);
+            }
+        };
+
+        window.addEventListener('purchase-orders-badge', handleBadgeUpdate);
+        return () =>
+            window.removeEventListener(
+                'purchase-orders-badge',
+                handleBadgeUpdate
+            );
+    }, [canSeePurchaseOrders]);
     const filterItems = (items: NavItem[]): NavItem[] =>
         items
             .map((item) => {
@@ -145,7 +198,29 @@ export function AppSidebar() {
             })
             .filter((item): item is NavItem => item !== null);
 
-    const visibleMainNavItems = filterItems(mainNavItems);
+    const visibleMainNavItems = useMemo(() => {
+        const filteredItems = filterItems(mainNavItems);
+        if (!purchaseOrderBadgeCount) return filteredItems;
+
+        return filteredItems.map((item) => {
+            if (!item.children) return item;
+
+            const updatedChildren = item.children.map((child) => {
+                if (child.href === '/inventory/purchase-orders') {
+                    return {
+                        ...child,
+                        badgeCount: purchaseOrderBadgeCount,
+                    };
+                }
+                return child;
+            });
+
+            return {
+                ...item,
+                children: updatedChildren,
+            };
+        });
+    }, [purchaseOrderBadgeCount, permissionSet]);
 
     return (
         <Sidebar collapsible="icon" variant="inset">

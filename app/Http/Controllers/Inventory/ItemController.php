@@ -18,8 +18,9 @@ class ItemController extends Controller
         $items = Item::query()
             ->with('category')
             ->orderBy('name')
-            ->get()
-            ->map(fn (Item $item) => [
+            ->paginate(10)
+            ->withQueryString()
+            ->through(fn (Item $item) => [
                 'id' => $item->id,
                 'name' => $item->name,
                 'category' => $item->category?->name,

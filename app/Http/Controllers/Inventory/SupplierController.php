@@ -14,8 +14,9 @@ class SupplierController extends Controller
     {
         $suppliers = Supplier::withCount('purchaseOrders')
             ->orderBy('name')
-            ->get()
-            ->map(fn($supplier) => [
+            ->paginate(10)
+            ->withQueryString()
+            ->through(fn($supplier) => [
                 'id' => $supplier->id,
                 'name' => $supplier->name,
                 'contact_person' => $supplier->contact_person,

@@ -17,8 +17,9 @@ class AssemblyController extends Controller
     {
         $assemblies = Assembly::with(['finalItem', 'user', 'items.item'])
             ->orderBy('created_at', 'desc')
-            ->get()
-            ->map(function ($assembly) {
+            ->paginate(10)
+            ->withQueryString()
+            ->through(function ($assembly) {
                 return [
                     'id' => $assembly->id,
                     'final_item_id' => $assembly->final_item_id,
