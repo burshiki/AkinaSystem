@@ -14,6 +14,7 @@ return [
         'access inventory-suppliers' => 'Inventory - Supplier',
         'access inventory-log' => 'Inventory - Item Log',
         'access register-history' => 'Register History',
+        'access income-expense' => 'Income/Expense',
         'access customers' => 'Customers',
         'access users' => 'Users',
         'access reports' => 'Reports',

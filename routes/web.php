@@ -16,6 +16,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CashRegisterController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\SalesHistoryController;
+use App\Http\Controllers\IncomeExpenseController;
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
@@ -77,6 +78,22 @@ Route::prefix('register-history')
         Route::put('{session}', [SalesHistoryController::class, 'update'])
             ->name('register-history.update');
     });
+
+Route::get('income-expense', [IncomeExpenseController::class, 'index'])
+    ->middleware(['auth', 'verified', 'permission:access income-expense'])
+    ->name('income-expense.index');
+
+Route::post('income-expense', [IncomeExpenseController::class, 'store'])
+    ->middleware(['auth', 'verified', 'permission:access income-expense'])
+    ->name('income-expense.store');
+
+Route::put('income-expense/{incomeExpense}', [IncomeExpenseController::class, 'update'])
+    ->middleware(['auth', 'verified', 'permission:access income-expense'])
+    ->name('income-expense.update');
+
+Route::delete('income-expense/{incomeExpense}', [IncomeExpenseController::class, 'destroy'])
+    ->middleware(['auth', 'verified', 'permission:access income-expense'])
+    ->name('income-expense.destroy');
 
 Route::resource('users', UserController::class)
     ->except(['show'])

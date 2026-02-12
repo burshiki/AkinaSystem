@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChartNoAxesCombinedIcon, HistoryIcon, LayoutGrid, PcCaseIcon, PiggyBankIcon, SettingsIcon, UsersIcon, UsersRoundIcon, WarehouseIcon } from 'lucide-react';
+import { ChartNoAxesCombinedIcon, DollarSignIcon, HistoryIcon, LayoutGrid, PcCaseIcon, PiggyBankIcon, SettingsIcon, UsersIcon, UsersRoundIcon, WarehouseIcon } from 'lucide-react';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -85,6 +85,12 @@ const mainNavItems: NavItem[] = [
         href: '/register-history',
         icon: HistoryIcon,
         permission: 'access register-history',
+    },
+    {
+        title: 'Income/Expense',
+        href: '/income-expense',
+        icon: DollarSignIcon,
+        permission: 'access income-expense',
     },
     {
         title: 'Customers',

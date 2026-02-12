@@ -15,8 +15,8 @@ class CustomerController extends Controller
     {
         $customers = Customer::query()
             ->orderBy('name')
-            ->get()
-            ->map(fn (Customer $customer) => [
+            ->paginate(15)
+            ->through(fn (Customer $customer) => [
                 'id' => $customer->id,
                 'name' => $customer->name,
                 'email' => $customer->email,

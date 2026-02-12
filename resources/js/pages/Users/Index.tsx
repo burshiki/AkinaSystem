@@ -24,6 +24,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import Pagination, { type PaginationData } from '@/components/pagination';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -42,7 +43,7 @@ type UserRow = {
 };
 
 type PageProps = {
-    users: UserRow[];
+    users: PaginationData<UserRow>;
     permissions: PermissionOption[];
 };
 
@@ -94,10 +95,10 @@ export default function UsersIndex({ users, permissions }: PageProps) {
     const filteredUsers = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
         if (!query) {
-            return users;
+            return users.data;
         }
 
-        return users.filter((user) => {
+        return users.data.filter((user) => {
             const permissionsText = user.permissions.join(' ').toLowerCase();
             return (
                 user.name.toLowerCase().includes(query) ||
@@ -308,6 +309,7 @@ export default function UsersIndex({ users, permissions }: PageProps) {
                                 : 'No users found. Add your first account to get started.'}
                         </div>
                     )}
+                    {!searchQuery && <Pagination data={users} />}
                 </div>
             </div>
 

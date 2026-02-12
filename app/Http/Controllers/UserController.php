@@ -17,8 +17,8 @@ class UserController extends Controller
         $users = User::query()
             ->with('permissions')
             ->orderBy('name')
-            ->get()
-            ->map(fn (User $user) => [
+            ->paginate(15)
+            ->through(fn (User $user) => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,

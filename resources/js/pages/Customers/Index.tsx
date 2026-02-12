@@ -22,6 +22,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
+import Pagination, { type PaginationData } from '@/components/pagination';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Customers', href: '/customers' },
@@ -39,7 +40,7 @@ type CustomerRow = {
 };
 
 type PageProps = {
-    customers: CustomerRow[];
+    customers: PaginationData<CustomerRow>;
 };
 
 export default function CustomersIndex({ customers }: PageProps) {
@@ -77,10 +78,10 @@ export default function CustomersIndex({ customers }: PageProps) {
     const filteredCustomers = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
         if (!query) {
-            return customers;
+            return customers.data;
         }
 
-        return customers.filter((customer) =>
+        return customers.data.filter((customer) => 
             [
                 customer.name,
                 customer.email ?? '',
@@ -294,6 +295,7 @@ export default function CustomersIndex({ customers }: PageProps) {
                                 : 'No customers found. Add your first customer to get started.'}
                         </div>
                     )}
+                    {!searchQuery && <Pagination data={customers} />}
                 </div>
             </div>
 
