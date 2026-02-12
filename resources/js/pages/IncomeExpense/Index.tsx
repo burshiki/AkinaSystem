@@ -39,6 +39,21 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
+const getPhilippineDate = () => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Manila',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(new Date());
+
+    const year = parts.find((part) => part.type === 'year')?.value ?? '';
+    const month = parts.find((part) => part.type === 'month')?.value ?? '';
+    const day = parts.find((part) => part.type === 'day')?.value ?? '';
+
+    return `${year}-${month}-${day}`;
+};
+
 type BankAccount = {
     id: number;
     bank_name: string;
@@ -58,20 +73,38 @@ type IncomeExpenseRecord = {
     user: string;
     transaction_date: string;
     created_at: string;
+    is_system_generated: boolean;
 };
 
 type PageProps = {
     records: PaginationData<IncomeExpenseRecord>;
     bankAccounts: BankAccount[];
     hasOpenSession: boolean;
+    filters: {
+        start_date: string | null;
+        end_date: string | null;
+    };
+    totals: {
+        income: string;
+        expense: string;
+        net: string;
+    };
 };
 
-export default function IncomeExpenseIndex({ records, bankAccounts, hasOpenSession }: PageProps) {
+export default function IncomeExpenseIndex({
+    records,
+    bankAccounts,
+    hasOpenSession,
+    filters,
+    totals,
+}: PageProps) {
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState<IncomeExpenseRecord | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [startDate, setStartDate] = useState(filters.start_date ?? '');
+    const [endDate, setEndDate] = useState(filters.end_date ?? '');
 
     const filteredRecords = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
@@ -93,7 +126,7 @@ export default function IncomeExpenseIndex({ records, bankAccounts, hasOpenSessi
         amount: '',
         source: 'cash_register' as 'cash_register' | 'bank',
         bank_account_id: '',
-        transaction_date: new Date().toISOString().split('T')[0],
+        transaction_date: getPhilippineDate(),
     });
 
     const editForm = useForm({
@@ -104,12 +137,26 @@ export default function IncomeExpenseIndex({ records, bankAccounts, hasOpenSessi
         transaction_date: '',
     });
 
+    const handleAddOpenChange = (open: boolean) => {
+        setIsAddOpen(open);
+
+        if (open) {
+            addForm.setData('transaction_date', getPhilippineDate());
+            return;
+        }
+
+        addForm.reset();
+        addForm.clearErrors();
+        addForm.setData('transaction_date', getPhilippineDate());
+    };
+
     const handleAddSubmit = (event: FormEvent) => {
         event.preventDefault();
         addForm.post('/income-expense', {
             onSuccess: () => {
                 setIsAddOpen(false);
                 addForm.reset();
+                addForm.setData('transaction_date', getPhilippineDate());
             },
         });
     };
@@ -155,14 +202,44 @@ export default function IncomeExpenseIndex({ records, bankAccounts, hasOpenSessi
         });
     };
 
+    const applyDateFilter = () => {
+        router.get(
+            '/income-expense',
+            {
+                start_date: startDate || undefined,
+                end_date: endDate || undefined,
+            },
+            {
+                preserveState: true,
+                replace: true,
+            }
+        );
+    };
+
+    const clearDateFilter = () => {
+        setStartDate('');
+        setEndDate('');
+        router.get('/income-expense', {}, { preserveState: true, replace: true });
+    };
+
+    const printReport = () => {
+        const params = new URLSearchParams();
+        if (startDate) params.set('start_date', startDate);
+        if (endDate) params.set('end_date', endDate);
+
+        const query = params.toString();
+        const url = query ? `/income-expense/report?${query}` : '/income-expense/report';
+        window.open(url, '_blank');
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Income/Expense" />
             <div className="space-y-6">
                 <div className="border-t border-muted">
                     <div className="border-b border-muted px-6 py-4">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex flex-wrap items-center gap-3">
                                 <Input
                                     type="text"
                                     placeholder="Search income/expense..."
@@ -170,10 +247,48 @@ export default function IncomeExpenseIndex({ records, bankAccounts, hasOpenSessi
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     className="w-[300px]"
                                 />
+                                <Input
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="w-[170px]"
+                                />
+                                <Input
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="w-[170px]"
+                                />
+                                <Button variant="outline" onClick={applyDateFilter}>
+                                    Apply
+                                </Button>
+                                <Button variant="ghost" onClick={clearDateFilter}>
+                                    Clear
+                                </Button>
                             </div>
-                            <Button onClick={() => setIsAddOpen(true)}>
-                                Add Record
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" onClick={printReport}>
+                                    Print Report
+                                </Button>
+                                <Button onClick={() => handleAddOpenChange(true)}>
+                                    Add Record
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-3 border-b border-muted px-6 py-4 sm:grid-cols-3">
+                        <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">Total Income</p>
+                            <p className="text-lg font-semibold text-emerald-600">₱{totals.income}</p>
+                        </div>
+                        <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">Total Expense</p>
+                            <p className="text-lg font-semibold text-rose-600">₱{totals.expense}</p>
+                        </div>
+                        <div className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">Net Total</p>
+                            <p className="text-lg font-semibold">₱{totals.net}</p>
                         </div>
                     </div>
 
@@ -211,7 +326,12 @@ export default function IncomeExpenseIndex({ records, bankAccounts, hasOpenSessi
                                             </TableCell>
                                             <TableCell className="font-medium">{record.category}</TableCell>
                                             <TableCell className="text-sm text-muted-foreground">
-                                                {record.description || '—'}
+                                                <div className="flex items-center gap-2">
+                                                    {record.description || '—'}
+                                                    {record.is_system_generated && (
+                                                        <Badge variant="outline">Auto</Badge>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                             <TableCell className="text-sm">
                                                 {record.source === 'cash_register' ? (
@@ -226,20 +346,28 @@ export default function IncomeExpenseIndex({ records, bankAccounts, hasOpenSessi
                                             <TableCell className="text-sm">{record.user}</TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex justify-end gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleEdit(record)}
-                                                    >
-                                                        Edit
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleDelete(record)}
-                                                    >
-                                                        Delete
-                                                    </Button>
+                                                    {record.is_system_generated ? (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            Locked
+                                                        </span>
+                                                    ) : (
+                                                        <>
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleEdit(record)}
+                                                            >
+                                                                Edit
+                                                            </Button>
+                                                            <Button
+                                                                variant="destructive"
+                                                                size="sm"
+                                                                onClick={() => handleDelete(record)}
+                                                            >
+                                                                Delete
+                                                            </Button>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </TableCell>
                                         </TableRow>
@@ -253,7 +381,7 @@ export default function IncomeExpenseIndex({ records, bankAccounts, hasOpenSessi
             </div>
 
             {/* Add Dialog */}
-            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <Dialog open={isAddOpen} onOpenChange={handleAddOpenChange}>
                 <DialogContent className="sm:max-w-lg">
                     <DialogHeader>
                         <DialogTitle>Add Income/Expense Record</DialogTitle>

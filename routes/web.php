@@ -84,6 +84,10 @@ Route::get('income-expense', [IncomeExpenseController::class, 'index'])
     ->middleware(['auth', 'verified', 'permission:access income-expense'])
     ->name('income-expense.index');
 
+Route::get('income-expense/report', [IncomeExpenseController::class, 'report'])
+    ->middleware(['auth', 'verified', 'permission:access income-expense'])
+    ->name('income-expense.report');
+
 Route::post('income-expense', [IncomeExpenseController::class, 'store'])
     ->middleware(['auth', 'verified', 'permission:access income-expense'])
     ->name('income-expense.store');

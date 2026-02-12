@@ -455,7 +455,7 @@ export default function CashRegisterIndex({ session, itemSales, moneyFlow }: Pag
                 </div>
 
                 <div class="footer">
-                    Printed: ${new Date().toLocaleString()}
+                    Printed: ${new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila' })}
                 </div>
             </body>
             </html>

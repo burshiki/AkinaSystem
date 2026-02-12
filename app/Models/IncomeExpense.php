@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Models\BankAccount;
+use App\Models\CashRegisterSession;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -17,11 +20,13 @@ class IncomeExpense extends Model
         'cash_register_session_id',
         'user_id',
         'transaction_date',
+        'is_system_generated',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'transaction_date' => 'date',
+        'is_system_generated' => 'boolean',
     ];
 
     public function user(): BelongsTo

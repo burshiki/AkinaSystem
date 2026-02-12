@@ -31,6 +31,7 @@ export function AppSidebarHeader({
             <div className="absolute right-4 flex items-center gap-6 justify-end">
                 <div className="text-sm font-bold hidden sm:block">
                     {new Date().toLocaleDateString('en-US', { 
+                        timeZone: 'Asia/Manila',
                         weekday: 'long', 
                         month: 'long', 
                         day: 'numeric' 

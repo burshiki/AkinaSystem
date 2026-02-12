@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use App\Models\CashRegisterSession;
 use App\Models\Customer;
+use App\Models\IncomeExpense;
 use App\Models\Item;
 use App\Models\MoneyTransaction;
 use App\Models\Sale;
@@ -239,6 +241,8 @@ class CashRegisterController extends Controller
             'closed_at' => now(),
         ]);
 
+        $this->recordPosIncome($session, $request->user()->id);
+
         return redirect()->route('cash-register.index');
     }
 
@@ -268,6 +272,51 @@ class CashRegisterController extends Controller
             'closed_at' => now(),
         ]);
 
+        $this->recordPosIncome($session, $request->user()->id);
+
         return redirect()->route('cash-register.index');
+    }
+
+    private function recordPosIncome(CashRegisterSession $session, int $userId): void
+    {
+        $existing = IncomeExpense::query()
+            ->where('cash_register_session_id', $session->id)
+            ->where('is_system_generated', true)
+            ->where('type', 'income')
+            ->where('category', 'POS Sales')
+            ->exists();
+
+        if ($existing) {
+            return;
+        }
+
+        $cashSales = (float) $session->cash_sales;
+        $bankSales = (float) Sale::query()
+            ->where('cash_register_session_id', $session->id)
+            ->where('payment_method', 'bank')
+            ->sum('total');
+
+        $totalPosIncome = $cashSales + $bankSales;
+
+        if ($totalPosIncome <= 0) {
+            return;
+        }
+
+        IncomeExpense::create([
+            'type' => 'income',
+            'category' => 'POS Sales',
+            'description' => sprintf(
+                'Auto-recorded from closed register session #%d (Cash: ₱%s, Bank: ₱%s)',
+                $session->id,
+                number_format($cashSales, 2),
+                number_format($bankSales, 2)
+            ),
+            'amount' => $totalPosIncome,
+            'source' => 'cash_register',
+            'cash_register_session_id' => $session->id,
+            'user_id' => $userId,
+            'transaction_date' => $session->closed_at?->toDateString() ?? now()->toDateString(),
+            'is_system_generated' => true,
+        ]);
     }
 }

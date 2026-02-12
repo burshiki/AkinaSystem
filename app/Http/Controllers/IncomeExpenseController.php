@@ -2,25 +2,44 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\CashRegisterSession;
 use App\Models\IncomeExpense;
 use App\Models\MoneyTransaction;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\View\View;
 
 class IncomeExpenseController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        $records = IncomeExpense::query()
+        $filters = $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $query = $this->filteredQuery($filters);
+
+        $totals = (clone $query)
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as total_income")
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as total_expense")
+            ->first();
+
+        $totalIncome = (float) ($totals?->total_income ?? 0);
+        $totalExpense = (float) ($totals?->total_expense ?? 0);
+
+        $records = $query
             ->with(['user:id,name', 'bankAccount:id,bank_name,account_name', 'cashRegisterSession'])
             ->orderBy('transaction_date', 'desc')
             ->orderBy('created_at', 'desc')
             ->paginate(15)
+            ->withQueryString()
             ->through(fn ($record) => [
                 'id' => $record->id,
                 'type' => $record->type,
@@ -35,6 +54,7 @@ class IncomeExpenseController extends Controller
                 'user' => $record->user?->name ?? 'Unknown',
                 'transaction_date' => $record->transaction_date?->format('M d, Y'),
                 'created_at' => $record->created_at?->format('M d, Y H:i'),
+                'is_system_generated' => $record->is_system_generated,
             ]);
 
         $bankAccounts = BankAccount::query()
@@ -56,6 +76,46 @@ class IncomeExpenseController extends Controller
             'records' => $records,
             'bankAccounts' => $bankAccounts,
             'hasOpenSession' => $openSession !== null,
+            'filters' => [
+                'start_date' => $filters['start_date'] ?? null,
+                'end_date' => $filters['end_date'] ?? null,
+            ],
+            'totals' => [
+                'income' => number_format($totalIncome, 2),
+                'expense' => number_format($totalExpense, 2),
+                'net' => number_format($totalIncome - $totalExpense, 2),
+            ],
+        ]);
+    }
+
+    public function report(Request $request): View
+    {
+        $filters = $request->validate([
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $records = $this->filteredQuery($filters)
+            ->with(['user:id,name', 'bankAccount:id,bank_name,account_name'])
+            ->orderBy('transaction_date', 'asc')
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        $totalIncome = (float) $records
+            ->where('type', 'income')
+            ->sum('amount');
+
+        $totalExpense = (float) $records
+            ->where('type', 'expense')
+            ->sum('amount');
+
+        return view('reports.income-expense', [
+            'records' => $records,
+            'startDate' => $filters['start_date'] ?? null,
+            'endDate' => $filters['end_date'] ?? null,
+            'totalIncome' => $totalIncome,
+            'totalExpense' => $totalExpense,
+            'netTotal' => $totalIncome - $totalExpense,
         ]);
     }
 
@@ -118,6 +178,12 @@ class IncomeExpenseController extends Controller
 
     public function update(Request $request, IncomeExpense $incomeExpense): RedirectResponse
     {
+        if ($incomeExpense->is_system_generated) {
+            return back()->withErrors([
+                'record' => 'System-generated POS income cannot be edited.',
+            ]);
+        }
+
         $validated = $request->validate([
             'type' => ['required', 'in:income,expense'],
             'category' => ['required', 'string', 'max:255'],
@@ -133,8 +199,28 @@ class IncomeExpenseController extends Controller
 
     public function destroy(IncomeExpense $incomeExpense): RedirectResponse
     {
+        if ($incomeExpense->is_system_generated) {
+            return back()->withErrors([
+                'record' => 'System-generated POS income cannot be deleted.',
+            ]);
+        }
+
         $incomeExpense->delete();
 
         return back()->with('success', 'Record deleted successfully.');
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     */
+    private function filteredQuery(array $filters): Builder
+    {
+        return IncomeExpense::query()
+            ->when($filters['start_date'] ?? null, fn (Builder $query, string $date) =>
+                $query->whereDate('transaction_date', '>=', $date)
+            )
+            ->when($filters['end_date'] ?? null, fn (Builder $query, string $date) =>
+                $query->whereDate('transaction_date', '<=', $date)
+            );
     }
 }
