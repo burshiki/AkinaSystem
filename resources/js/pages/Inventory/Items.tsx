@@ -41,7 +41,6 @@ type ItemRow = {
     name: string;
     brand_id?: number | null;
     brand?: string | null;
-    serial_number?: string | null;
     sku?: string | null;
     barcode?: string | null;
     has_warranty: boolean;
@@ -88,7 +87,6 @@ export default function InventoryItems({ items, categories, brands }: PageProps)
     const createForm = useForm({
         name: '',
         brand_id: '' as string | number,
-        serial_number: '',
         sku: '',
         barcode: '',
         has_warranty: true,
@@ -104,7 +102,6 @@ export default function InventoryItems({ items, categories, brands }: PageProps)
     const editForm = useForm({
         name: '',
         brand_id: '' as string | number,
-        serial_number: '',
         sku: '',
         barcode: '',
         has_warranty: false,
@@ -174,7 +171,6 @@ export default function InventoryItems({ items, categories, brands }: PageProps)
         editForm.setData({
             name: editingItem.name,
             brand_id: editingItem.brand_id ?? '',
-            serial_number: editingItem.serial_number ?? '',
             sku: editingItem.sku ?? '',
             barcode: editingItem.barcode ?? '',
             has_warranty: editingItem.has_warranty,
@@ -459,18 +455,6 @@ export default function InventoryItems({ items, categories, brands }: PageProps)
                                         {createForm.errors.brand_id}
                                     </p>
                                 )}
-                            </div>
-
-                            <div className="grid gap-2">
-                                <Label htmlFor="create-serial">Serial Number</Label>
-                                <Input
-                                    id="create-serial"
-                                    value={createForm.data.serial_number}
-                                    onChange={(event) =>
-                                        createForm.setData('serial_number', event.target.value)
-                                    }
-                                    placeholder="Serial number"
-                                />
                             </div>
                         </div>
 
@@ -774,18 +758,6 @@ export default function InventoryItems({ items, categories, brands }: PageProps)
                                 >
                                     + Add Brand
                                 </Button>
-                            </div>
-
-                            <div className="grid gap-2">
-                                <Label htmlFor="edit-serial">Serial Number</Label>
-                                <Input
-                                    id="edit-serial"
-                                    value={editForm.data.serial_number}
-                                    onChange={(event) =>
-                                        editForm.setData('serial_number', event.target.value)
-                                    }
-                                    placeholder="Serial number"
-                                />
                             </div>
                         </div>
 

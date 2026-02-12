@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -9,6 +10,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
+use Spatie\Permission\Models\Permission;
 
 class UserController extends Controller
 {
@@ -48,7 +50,7 @@ class UserController extends Controller
             'password' => ['required', 'string', Password::min(8)],
             'is_admin' => ['boolean'],
             'permissions' => ['array'],
-            'permissions.*' => ['string', 'exists:permissions,name'],
+            'permissions.*' => ['string'],
         ]);
 
         $user = User::create([
@@ -58,7 +60,7 @@ class UserController extends Controller
             'is_admin' => $validated['is_admin'] ?? false,
         ]);
 
-        $user->syncPermissions($validated['permissions'] ?? []);
+        $user->syncPermissions($this->resolvePermissions($validated));
 
         return redirect()->route('users.index');
     }
@@ -84,7 +86,7 @@ class UserController extends Controller
             'password' => ['nullable', 'string', Password::min(8)],
             'is_admin' => ['boolean'],
             'permissions' => ['array'],
-            'permissions.*' => ['string', 'exists:permissions,name'],
+            'permissions.*' => ['string'],
         ]);
 
         $user->update([
@@ -99,7 +101,7 @@ class UserController extends Controller
             ]);
         }
 
-        $user->syncPermissions($validated['permissions'] ?? []);
+        $user->syncPermissions($this->resolvePermissions($validated));
 
         return redirect()->route('users.index');
     }
@@ -131,5 +133,31 @@ class UserController extends Controller
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * @param array<string, mixed> $validated
+     * @return array<int, string>
+     */
+    private function resolvePermissions(array $validated): array
+    {
+        $allPermissions = collect(config('permissions.modules', []))
+            ->keys()
+            ->values();
+
+        $selectedPermissions = ($validated['is_admin'] ?? false)
+            ? $allPermissions
+            : collect($validated['permissions'] ?? [])->values();
+
+        $resolvedPermissions = $selectedPermissions
+            ->intersect($allPermissions)
+            ->unique()
+            ->values();
+
+        $resolvedPermissions->each(
+            fn (string $name) => Permission::findOrCreate($name, 'web')
+        );
+
+        return $resolvedPermissions->all();
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Controller;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Models\BankAccount;
@@ -13,8 +14,10 @@ use App\Models\ItemLog;
 use App\Models\MoneyTransaction;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\Warranty;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class PosController extends Controller
 {
@@ -44,6 +47,8 @@ class PosController extends Controller
                 'category_id' => $item->category_id,
                 'price' => $item->price,
                 'stock' => $item->stock,
+                'has_warranty' => $item->has_warranty,
+                'warranty_months' => $item->warranty_months,
             ]);
 
         $categories = ItemCategory::query()
@@ -106,6 +111,8 @@ class PosController extends Controller
             'items.*.item_id' => ['required', 'exists:items,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.price' => ['required', 'numeric', 'min:0'],
+            'items.*.serial_numbers' => ['nullable', 'array'],
+            'items.*.serial_numbers.*' => ['nullable', 'string', 'max:255'],
         ]);
 
         // Require customer for credit payments
@@ -155,8 +162,29 @@ class PosController extends Controller
                 $quantity = $itemData['quantity'];
                 $price = $itemData['price'];
                 $itemSubtotal = $price * $quantity;
+                $serialNumbers = collect($itemData['serial_numbers'] ?? [])
+                    ->map(fn (mixed $serial) => trim((string) $serial))
+                    ->filter()
+                    ->values();
 
-                SaleItem::create([
+                if ($item->has_warranty) {
+                    if ($serialNumbers->count() !== $quantity) {
+                        throw ValidationException::withMessages([
+                            'items' => "{$item->name} requires {$quantity} serial number(s) for warranty.",
+                        ]);
+                    }
+
+                    $normalizedSerials = $serialNumbers
+                        ->map(fn (string $serial) => mb_strtolower($serial));
+
+                    if ($normalizedSerials->unique()->count() !== $serialNumbers->count()) {
+                        throw ValidationException::withMessages([
+                            'items' => "{$item->name} has duplicate serial number entries.",
+                        ]);
+                    }
+                }
+
+                $saleItem = SaleItem::create([
                     'sale_id' => $sale->id,
                     'item_id' => $item->id,
                     'quantity' => $quantity,
@@ -179,6 +207,23 @@ class PosController extends Controller
                     referenceType: Sale::class,
                     referenceId: $sale->id
                 );
+
+                if ($item->has_warranty && $item->warranty_months && $item->warranty_months > 0) {
+                    $soldAt = $sale->created_at ?? now();
+
+                    foreach ($serialNumbers as $serialNumber) {
+                        Warranty::create([
+                            'sale_id' => $sale->id,
+                            'sale_item_id' => $saleItem->id,
+                            'item_id' => $item->id,
+                            'customer_id' => $validated['customer_id'] ?? null,
+                            'serial_number' => $serialNumber,
+                            'warranty_months' => (int) $item->warranty_months,
+                            'sold_at' => $soldAt,
+                            'expires_at' => $soldAt->copy()->addMonthsNoOverflow((int) $item->warranty_months),
+                        ]);
+                    }
+                }
             }
 
             if ($validated['payment_method'] === 'cash') {

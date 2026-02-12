@@ -12,6 +12,7 @@ use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\Inventory\StockAdjustmentController;
 use App\Http\Controllers\Inventory\ItemLogController;
 use App\Http\Controllers\Inventory\AssemblyController;
+use App\Http\Controllers\Warranty\WarrantyController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\CashRegisterController;
 use App\Http\Controllers\DashboardController;
@@ -86,6 +87,10 @@ Route::get('income-expense', [IncomeExpenseController::class, 'index'])
 Route::post('income-expense', [IncomeExpenseController::class, 'store'])
     ->middleware(['auth', 'verified', 'permission:access income-expense'])
     ->name('income-expense.store');
+
+Route::get('warranty', [WarrantyController::class, 'index'])
+    ->middleware(['auth', 'verified', 'permission:access warranty'])
+    ->name('warranty.index');
 
 Route::put('income-expense/{incomeExpense}', [IncomeExpenseController::class, 'update'])
     ->middleware(['auth', 'verified', 'permission:access income-expense'])

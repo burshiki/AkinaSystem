@@ -36,6 +36,8 @@ type ItemRow = {
     category_id?: number | null;
     price: string;
     stock: number;
+    has_warranty: boolean;
+    warranty_months?: number | null;
 };
 
 type CategoryRow = {
@@ -64,6 +66,9 @@ type CartItem = {
     price: number;
     quantity: number;
     stock: number;
+    has_warranty: boolean;
+    warranty_months: number | null;
+    serial_numbers: string[];
 };
 
 type PageProps = {
@@ -90,7 +95,12 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
         payment_method: 'cash',
         bank_account_id: '',
         amount_paid: '',
-        items: [] as { item_id: number; quantity: number; price: number }[],
+        items: [] as {
+            item_id: number;
+            quantity: number;
+            price: number;
+            serial_numbers?: string[];
+        }[],
     });
 
     const createCustomerForm = useForm({
@@ -136,6 +146,20 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
         return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     }, [cart]);
 
+    const warrantyCartItems = useMemo(
+        () => cart.filter((item) => item.has_warranty && (item.warranty_months ?? 0) > 0),
+        [cart]
+    );
+
+    const hasIncompleteWarrantySerials = useMemo(
+        () =>
+            warrantyCartItems.some((item) =>
+                item.serial_numbers.length !== item.quantity ||
+                item.serial_numbers.some((serial) => serial.trim().length === 0)
+            ),
+        [warrantyCartItems]
+    );
+
     // Auto-refresh to sync data across users
     useEffect(() => {
         const interval = setInterval(() => {
@@ -173,6 +197,9 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
                     price: parseFloat(product.price),
                     quantity: 1,
                     stock: product.stock,
+                    has_warranty: product.has_warranty,
+                    warranty_months: product.warranty_months ?? null,
+                    serial_numbers: product.has_warranty ? [''] : [],
                 },
             ]);
         }
@@ -186,7 +213,20 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
                         const newQuantity = item.quantity + delta;
                         if (newQuantity <= 0) return null;
                         if (newQuantity > item.stock) return item;
-                        return { ...item, quantity: newQuantity };
+
+                        const nextSerials = item.has_warranty
+                            ? (
+                                  newQuantity > item.quantity
+                                      ? [...item.serial_numbers, ...Array(newQuantity - item.quantity).fill('')]
+                                      : item.serial_numbers.slice(0, newQuantity)
+                              )
+                            : item.serial_numbers;
+
+                        return {
+                            ...item,
+                            quantity: newQuantity,
+                            serial_numbers: nextSerials,
+                        };
                     }
                     return item;
                 })
@@ -194,8 +234,66 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
         );
     };
 
+    const setQuantity = (itemId: number, nextQuantity: number) => {
+        if (!Number.isFinite(nextQuantity)) {
+            return;
+        }
+
+        setCart((currentCart) =>
+            currentCart
+                .map((item) => {
+                    if (item.id !== itemId) {
+                        return item;
+                    }
+
+                    if (nextQuantity <= 0) {
+                        return null;
+                    }
+
+                    const boundedQuantity = Math.min(nextQuantity, item.stock);
+                    const adjustedQuantity = Math.max(1, boundedQuantity);
+
+                    const nextSerials = item.has_warranty
+                        ? (
+                              adjustedQuantity > item.quantity
+                                  ? [
+                                        ...item.serial_numbers,
+                                        ...Array(adjustedQuantity - item.quantity).fill(''),
+                                    ]
+                                  : item.serial_numbers.slice(0, adjustedQuantity)
+                          )
+                        : item.serial_numbers;
+
+                    return {
+                        ...item,
+                        quantity: adjustedQuantity,
+                        serial_numbers: nextSerials,
+                    };
+                })
+                .filter((item): item is CartItem => item !== null)
+        );
+    };
+
     const removeFromCart = (itemId: number) => {
         setCart(cart.filter((item) => item.id !== itemId));
+    };
+
+    const updateWarrantySerial = (itemId: number, serialIndex: number, value: string) => {
+        setCart((currentCart) =>
+            currentCart.map((item) => {
+                if (item.id !== itemId) {
+                    return item;
+                }
+
+                const nextSerialNumbers = [...item.serial_numbers];
+                nextSerialNumbers[serialIndex] = value;
+
+                return {
+                    ...item,
+                    serial_numbers: nextSerialNumbers,
+                };
+            })
+        );
     };
 
     const handlePayment = (method: 'cash' | 'bank' | 'credit') => {
@@ -231,6 +329,9 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
                 item_id: item.id,
                 quantity: item.quantity,
                 price: item.price,
+                serial_numbers: item.has_warranty
+                    ? item.serial_numbers.map((serial) => serial.trim())
+                    : [],
             })),
         }, {
             preserveScroll: true,
@@ -269,15 +370,17 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
                 createCustomerForm.reset();
                 
                 // Reload customers and select the newly created one
-                router.reload({ only: ['customers'] }, {
-                    onSuccess: (props: any) => {
-                        const newCustomer = props.customers?.find(
-                            (c: CustomerRow) => c.name === customerName
+                router.reload({
+                    only: ['customers'],
+                    onSuccess: (page) => {
+                        const customerRows = (page.props as { customers?: CustomerRow[] }).customers ?? [];
+                        const newCustomer = customerRows.find(
+                            (c) => c.name === customerName
                         );
                         if (newCustomer) {
                             setSelectedCustomer(newCustomer);
                         }
-                    }
+                    },
                 });
             },
         });
@@ -489,9 +592,19 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
                                                     >
                                                         <Minus className="h-3 w-3" />
                                                     </Button>
-                                                    <span className="w-8 text-center text-xs font-semibold">
-                                                        {item.quantity}
-                                                    </span>
+                                                    <Input
+                                                        type="number"
+                                                        min={1}
+                                                        max={item.stock}
+                                                        value={item.quantity}
+                                                        onChange={(event) =>
+                                                            setQuantity(
+                                                                item.id,
+                                                                Number(event.target.value)
+                                                            )
+                                                        }
+                                                        className="h-7 w-16 border-0 px-1 text-center text-xs font-semibold focus-visible:ring-0"
+                                                    />
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
@@ -660,6 +773,41 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
                                 )}
                             </div>
                         )}
+                        {warrantyCartItems.length > 0 && (
+                            <div className="space-y-3">
+                                <div className="text-sm font-semibold">Warranty Serial Numbers</div>
+                                <div className="max-h-56 space-y-4 overflow-y-auto rounded-md border p-3">
+                                    {warrantyCartItems.map((item) => (
+                                        <div key={item.id} className="space-y-2">
+                                            <p className="text-xs font-medium text-muted-foreground">
+                                                {item.name} • {item.quantity} unit(s) • {item.warranty_months} month(s)
+                                            </p>
+                                            <div className="grid gap-2">
+                                                {Array.from({ length: item.quantity }, (_, index) => (
+                                                    <Input
+                                                        key={`${item.id}-${index}`}
+                                                        value={item.serial_numbers[index] ?? ''}
+                                                        onChange={(event) =>
+                                                            updateWarrantySerial(
+                                                                item.id,
+                                                                index,
+                                                                event.target.value
+                                                            )
+                                                        }
+                                                        placeholder={`Serial #${index + 1}`}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                {hasIncompleteWarrantySerials && (
+                                    <p className="text-xs text-destructive">
+                                        Enter all serial numbers for warranty items before completing sale.
+                                    </p>
+                                )}
+                            </div>
+                        )}
                         <DialogFooter>
                             <Button
                                 type="button"
@@ -673,7 +821,8 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
                                 type="submit"
                                 disabled={
                                     isSubmitting ||
-                                    (paymentMethod === 'bank' && !paymentForm.data.bank_account_id)
+                                    (paymentMethod === 'bank' && !paymentForm.data.bank_account_id) ||
+                                    hasIncompleteWarrantySerials
                                 }
                             >
                                 {isSubmitting ? 'Processing...' : 'Complete Sale'}

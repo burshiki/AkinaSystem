@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Models\ItemBrand;
+use App\Models\ItemCategory;
 
 class Item extends Model
 {
@@ -13,7 +15,6 @@ class Item extends Model
     protected $fillable = [
         'name',
         'brand_id',
-        'serial_number',
         'sku',
         'barcode',
         'has_warranty',

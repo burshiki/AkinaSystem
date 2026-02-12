@@ -108,6 +108,22 @@ export default function UsersIndex({ users, permissions }: PageProps) {
         });
     }, [searchQuery, users]);
 
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (document.visibilityState !== 'visible') {
+                return;
+            }
+
+            if (isCreateOpen || isEditOpen) {
+                return;
+            }
+
+            router.reload({ only: ['users', 'permissions'] });
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [isCreateOpen, isEditOpen]);
+
     const handleDelete = (userId: number) => {
         if (!confirm('Delete this user?')) {
             return;
@@ -314,12 +330,15 @@ export default function UsersIndex({ users, permissions }: PageProps) {
             </div>
 
             <Dialog open={isCreateOpen} onOpenChange={handleCreateToggle}>
-                <DialogContent className="sm:max-w-2xl">
+                <DialogContent className="sm:max-w-4xl">
                     <DialogHeader>
                         <DialogTitle>Add User</DialogTitle>
                     </DialogHeader>
                     <hr />
-                    <form onSubmit={handleCreateSubmit} className="space-y-6">
+                    <form
+                        onSubmit={handleCreateSubmit}
+                        className="max-h-[78vh] space-y-6 overflow-y-auto pr-1"
+                    >
                         <div className="space-y-4">
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <div className="grid gap-2">
@@ -391,32 +410,33 @@ export default function UsersIndex({ users, permissions }: PageProps) {
                                 Access configuration
                             </div>
                             <div
-                                className={`grid gap-3 sm:grid-cols-2 ${
+                                className={`max-h-72 overflow-y-auto rounded-md border p-3 ${
                                     createForm.errors.permissions
-                                        ? 'rounded-md ring-1 ring-destructive/60'
+                                        ? 'ring-1 ring-destructive/60'
                                         : ''
                                 }`}
                             >
-                                {permissions.map((permission) => (
-                                    <label
-                                        key={permission.name}
-                                        className="flex items-center gap-2 rounded-md border bg-background p-3 text-sm"
-                                    >
-                                        <Checkbox
-                                            checked={createForm.data.permissions.includes(
-                                                permission.name
-                                            )}
-                                            disabled={createForm.data.is_admin}
-                                            onCheckedChange={(checked) =>
-                                                toggleCreatePermission(
-                                                    permission.name,
-                                                    checked === true
-                                                )
-                                            }
-                                        />
-                                        <span>{permission.label}</span>
-                                    </label>
-                                ))}
+                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                    {permissions.map((permission) => (
+                                        <label
+                                            key={permission.name}
+                                            className="flex items-center gap-2 rounded-md border bg-background p-3 text-sm"
+                                        >
+                                            <Checkbox
+                                                checked={createForm.data.permissions.includes(
+                                                    permission.name
+                                                )}
+                                                onCheckedChange={(checked) =>
+                                                    toggleCreatePermission(
+                                                        permission.name,
+                                                        checked === true
+                                                    )
+                                                }
+                                            />
+                                            <span>{permission.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
 
                             <div
@@ -468,14 +488,17 @@ export default function UsersIndex({ users, permissions }: PageProps) {
             </Dialog>
 
             <Dialog open={isEditOpen} onOpenChange={handleEditToggle}>
-                <DialogContent className="sm:max-w-2xl">
+                <DialogContent className="sm:max-w-4xl">
                     <DialogHeader>
                         <DialogTitle>Edit user</DialogTitle>
                         <DialogDescription>
                             Update user details and module access.
                         </DialogDescription>
                     </DialogHeader>
-                    <form onSubmit={handleEditSubmit} className="space-y-6">
+                    <form
+                        onSubmit={handleEditSubmit}
+                        className="max-h-[78vh] space-y-6 overflow-y-auto pr-1"
+                    >
                         <div className="space-y-4">
                             <div className="text-sm font-medium text-foreground">
                                 Account details
@@ -544,32 +567,33 @@ export default function UsersIndex({ users, permissions }: PageProps) {
                                 Access configuration
                             </div>
                             <div
-                                className={`grid gap-3 sm:grid-cols-2 ${
+                                className={`max-h-72 overflow-y-auto rounded-md border p-3 ${
                                     editForm.errors.permissions
-                                        ? 'rounded-md ring-1 ring-destructive/60'
+                                        ? 'ring-1 ring-destructive/60'
                                         : ''
                                 }`}
                             >
-                                {permissions.map((permission) => (
-                                    <label
-                                        key={permission.name}
-                                        className="flex items-center gap-2 rounded-md border bg-background p-3 text-sm"
-                                    >
-                                        <Checkbox
-                                            checked={permissionSet.has(
-                                                permission.name
-                                            )}
-                                            disabled={editForm.data.is_admin}
-                                            onCheckedChange={(checked) =>
-                                                toggleEditPermission(
-                                                    permission.name,
-                                                    checked === true
-                                                )
-                                            }
-                                        />
-                                        <span>{permission.label}</span>
-                                    </label>
-                                ))}
+                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                    {permissions.map((permission) => (
+                                        <label
+                                            key={permission.name}
+                                            className="flex items-center gap-2 rounded-md border bg-background p-3 text-sm"
+                                        >
+                                            <Checkbox
+                                                checked={permissionSet.has(
+                                                    permission.name
+                                                )}
+                                                onCheckedChange={(checked) =>
+                                                    toggleEditPermission(
+                                                        permission.name,
+                                                        checked === true
+                                                    )
+                                                }
+                                            />
+                                            <span>{permission.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
 
                             <div

@@ -36,6 +36,12 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
+        $permissions = $user?->is_admin
+            ? collect(config('permissions.modules', []))->keys()->values()->all()
+            : ($user?->getPermissionNames()->values()->all() ?? []);
+
         $hasOpenRegister = CashRegisterSession::query()
             ->where('status', 'open')
             ->exists();
@@ -47,8 +53,8 @@ class HandleInertiaRequests extends Middleware
                 'last_sale_id' => fn () => $request->session()->get('last_sale_id'),
             ],
             'auth' => [
-                'user' => $request->user(),
-                'permissions' => $request->user()?->getPermissionNames() ?? [],
+                'user' => $user,
+                'permissions' => $permissions,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'register' => [

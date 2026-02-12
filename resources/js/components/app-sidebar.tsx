@@ -1,6 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
+import { ChartNoAxesCombinedIcon, DollarSignIcon, HistoryIcon, LayoutGrid, PcCaseIcon, PiggyBankIcon, SettingsIcon, ShieldCheckIcon, UsersIcon, UsersRoundIcon, WarehouseIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChartNoAxesCombinedIcon, DollarSignIcon, HistoryIcon, LayoutGrid, PcCaseIcon, PiggyBankIcon, SettingsIcon, UsersIcon, UsersRoundIcon, WarehouseIcon } from 'lucide-react';
 import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -81,6 +81,12 @@ const mainNavItems: NavItem[] = [
         ],
     },
     {
+        title: 'Warranty',
+        href: '/warranty',
+        icon: ShieldCheckIcon,
+        permission: 'access warranty',
+    },
+    {
         title: 'Register History',
         href: '/register-history',
         icon: HistoryIcon,
@@ -159,7 +165,10 @@ const footerNavItems: NavItem[] = [
 
 export function AppSidebar() {
     const { auth } = usePage<SharedData>().props;
-    const permissionSet = new Set(auth?.permissions ?? []);
+    const permissionSet = useMemo(
+        () => new Set(auth?.permissions ?? []),
+        [auth?.permissions]
+    );
     const [purchaseOrderBadgeCount, setPurchaseOrderBadgeCount] = useState(0);
 
     const canSeePurchaseOrders = permissionSet.has(
@@ -184,14 +193,20 @@ export function AppSidebar() {
     useEffect(() => {
         if (!canSeePurchaseOrders) return;
 
-        fetchPurchaseOrderBadgeCount();
+        const initialFetchTimer = setTimeout(() => {
+            fetchPurchaseOrderBadgeCount();
+        }, 0);
+
         const interval = setInterval(() => {
             if (document.visibilityState === 'visible') {
                 fetchPurchaseOrderBadgeCount();
             }
         }, 5000);
 
-        return () => clearInterval(interval);
+        return () => {
+            clearTimeout(initialFetchTimer);
+            clearInterval(interval);
+        };
     }, [canSeePurchaseOrders, fetchPurchaseOrderBadgeCount]);
 
     useEffect(() => {
@@ -212,35 +227,36 @@ export function AppSidebar() {
                 handleBadgeUpdate
             );
     }, [canSeePurchaseOrders]);
-    const filterItems = (items: NavItem[]): NavItem[] =>
-        items
-            .map((item) => {
-                const visibleChildren = item.children
-                    ? filterItems(item.children)
-                    : undefined;
-                const hasPermission =
-                    !item.permission || permissionSet.has(item.permission);
-                const hasChildren =
-                    visibleChildren && visibleChildren.length > 0;
+    function filterItems(items: NavItem[]): NavItem[] {
+        const mappedItems: Array<NavItem | null> = items.map((item) => {
+            const visibleChildren = item.children
+                ? filterItems(item.children)
+                : undefined;
+            const hasPermission =
+                !item.permission || permissionSet.has(item.permission);
+            const hasChildren =
+                (visibleChildren?.length ?? 0) > 0;
 
-                if (!hasPermission && !hasChildren) {
-                    return null;
-                }
+            if (!hasPermission && !hasChildren) {
+                return null;
+            }
 
-                const safeHref =
-                    !hasPermission && hasChildren
-                        ? visibleChildren[0].href
-                        : item.href;
+            const safeHref =
+                !hasPermission && hasChildren
+                    ? visibleChildren?.[0]?.href ?? item.href
+                    : item.href;
 
-                return {
-                    ...item,
-                    href: safeHref,
-                    children: hasChildren ? visibleChildren : undefined,
-                };
-            })
-            .filter((item): item is NavItem => item !== null);
+            return {
+                ...item,
+                href: safeHref,
+                ...(hasChildren ? { children: visibleChildren } : {}),
+            };
+        });
 
-    const visibleMainNavItems = useMemo(() => {
+        return mappedItems.filter((item): item is NavItem => item !== null);
+    }
+
+    const visibleMainNavItems = (() => {
         const filteredItems = filterItems(mainNavItems);
         if (!purchaseOrderBadgeCount) return filteredItems;
 
@@ -262,7 +278,7 @@ export function AppSidebar() {
                 children: updatedChildren,
             };
         });
-    }, [purchaseOrderBadgeCount, permissionSet]);
+    })();
 
     return (
         <Sidebar collapsible="icon" variant="inset">

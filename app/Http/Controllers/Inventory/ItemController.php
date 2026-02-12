@@ -27,7 +27,6 @@ class ItemController extends Controller
                 'name' => $item->name,
                 'brand_id' => $item->brand_id,
                 'brand' => $item->brand?->name,
-                'serial_number' => $item->serial_number,
                 'sku' => $item->sku,
                 'barcode' => $item->barcode,
                 'has_warranty' => $item->has_warranty,
@@ -69,7 +68,6 @@ class ItemController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('items', 'name')],
             'brand_id' => ['nullable', 'integer', 'exists:item_brands,id'],
-            'serial_number' => ['nullable', 'string', 'max:255'],
             'sku' => ['nullable', 'string', 'max:255'],
             'barcode' => ['nullable', 'string', 'max:255'],
             'has_warranty' => ['boolean'],
@@ -110,7 +108,6 @@ class ItemController extends Controller
                 Rule::unique('items', 'name')->ignore($item->id),
             ],
             'brand_id' => ['nullable', 'integer', 'exists:item_brands,id'],
-            'serial_number' => ['nullable', 'string', 'max:255'],
             'sku' => ['nullable', 'string', 'max:255'],
             'barcode' => ['nullable', 'string', 'max:255'],
             'has_warranty' => ['boolean'],
