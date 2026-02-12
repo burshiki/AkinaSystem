@@ -12,6 +12,12 @@ class Item extends Model
 
     protected $fillable = [
         'name',
+        'brand_id',
+        'serial_number',
+        'sku',
+        'barcode',
+        'has_warranty',
+        'warranty_months',
         'category_id',
         'price',
         'cost',
@@ -24,9 +30,16 @@ class Item extends Model
         'price' => 'decimal:2',
         'cost' => 'decimal:2',
         'stock' => 'integer',
+        'warranty_months' => 'integer',
         'is_assemblable' => 'boolean',
         'is_main_assembly' => 'boolean',
+        'has_warranty' => 'boolean',
     ];
+
+    public function brand(): BelongsTo
+    {
+        return $this->belongsTo(ItemBrand::class, 'brand_id');
+    }
 
     public function category(): BelongsTo
     {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Models\Item;
+use App\Models\ItemBrand;
 use App\Models\ItemCategory;
 use App\Models\ItemLog;
 use Illuminate\Http\RedirectResponse;
@@ -17,13 +18,20 @@ class ItemController extends Controller
     public function index(): Response
     {
         $items = Item::query()
-            ->with('category')
+            ->with('category', 'brand')
             ->orderBy('name')
             ->paginate(10)
             ->withQueryString()
             ->through(fn (Item $item) => [
                 'id' => $item->id,
                 'name' => $item->name,
+                'brand_id' => $item->brand_id,
+                'brand' => $item->brand?->name,
+                'serial_number' => $item->serial_number,
+                'sku' => $item->sku,
+                'barcode' => $item->barcode,
+                'has_warranty' => $item->has_warranty,
+                'warranty_months' => $item->warranty_months,
                 'category' => $item->category?->name,
                 'category_id' => $item->category_id,
                 'price' => $item->price,
@@ -41,9 +49,18 @@ class ItemController extends Controller
                 'name' => $category->name,
             ]);
 
+        $brands = ItemBrand::query()
+            ->orderBy('name')
+            ->get()
+            ->map(fn (ItemBrand $brand) => [
+                'id' => $brand->id,
+                'name' => $brand->name,
+            ]);
+
         return Inertia::render('Inventory/Items', [
             'items' => $items,
             'categories' => $categories,
+            'brands' => $brands,
         ]);
     }
 
@@ -51,6 +68,12 @@ class ItemController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('items', 'name')],
+            'brand_id' => ['nullable', 'integer', 'exists:item_brands,id'],
+            'serial_number' => ['nullable', 'string', 'max:255'],
+            'sku' => ['nullable', 'string', 'max:255'],
+            'barcode' => ['nullable', 'string', 'max:255'],
+            'has_warranty' => ['boolean'],
+            'warranty_months' => ['nullable', 'integer', 'min:1'],
             'category_id' => ['nullable', 'integer', 'exists:item_categories,id'],
             'price' => ['required', 'numeric', 'min:0'],
             'cost' => ['nullable', 'numeric', 'min:0'],
@@ -86,6 +109,12 @@ class ItemController extends Controller
                 'max:255',
                 Rule::unique('items', 'name')->ignore($item->id),
             ],
+            'brand_id' => ['nullable', 'integer', 'exists:item_brands,id'],
+            'serial_number' => ['nullable', 'string', 'max:255'],
+            'sku' => ['nullable', 'string', 'max:255'],
+            'barcode' => ['nullable', 'string', 'max:255'],
+            'has_warranty' => ['boolean'],
+            'warranty_months' => ['nullable', 'integer', 'min:1'],
             'category_id' => ['nullable', 'integer', 'exists:item_categories,id'],
             'price' => ['required', 'numeric', 'min:0'],
             'cost' => ['nullable', 'numeric', 'min:0'],
@@ -118,6 +147,17 @@ class ItemController extends Controller
     public function destroy(Item $item): RedirectResponse
     {
         $item->delete();
+
+        return redirect()->route('inventory.items');
+    }
+
+    public function storeBrand(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('item_brands', 'name')],
+        ]);
+
+        ItemBrand::create($validated);
 
         return redirect()->route('inventory.items');
     }

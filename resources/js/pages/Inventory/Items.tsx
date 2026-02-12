@@ -7,7 +7,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -40,6 +39,13 @@ const breadcrumbs: BreadcrumbItem[] = [
 type ItemRow = {
     id: number;
     name: string;
+    brand_id?: number | null;
+    brand?: string | null;
+    serial_number?: string | null;
+    sku?: string | null;
+    barcode?: string | null;
+    has_warranty: boolean;
+    warranty_months?: number | null;
     category?: string;
     category_id?: number | null;
     price: string;
@@ -54,6 +60,11 @@ type CategoryOption = {
     name: string;
 };
 
+type BrandOption = {
+    id: number;
+    name: string;
+};
+
 type PageProps = {
     items: {
         data: ItemRow[];
@@ -64,16 +75,24 @@ type PageProps = {
         }>;
     };
     categories: CategoryOption[];
+    brands: BrandOption[];
 };
 
-export default function InventoryItems({ items, categories }: PageProps) {
+export default function InventoryItems({ items, categories, brands }: PageProps) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
+    const [isCreateBrandOpen, setIsCreateBrandOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<ItemRow | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
     const createForm = useForm({
         name: '',
+        brand_id: '' as string | number,
+        serial_number: '',
+        sku: '',
+        barcode: '',
+        has_warranty: true,
+        warranty_months: '',
         category_id: '' as string | number,
         price: '',
         cost: '',
@@ -84,12 +103,22 @@ export default function InventoryItems({ items, categories }: PageProps) {
 
     const editForm = useForm({
         name: '',
+        brand_id: '' as string | number,
+        serial_number: '',
+        sku: '',
+        barcode: '',
+        has_warranty: false,
+        warranty_months: '',
         category_id: '' as string | number,
         price: '',
         cost: '',
         stock: 0,
         is_assemblable: false,
         is_main_assembly: false,
+    });
+
+    const createBrandForm = useForm({
+        name: '',
     });
 
     const filteredItems = useMemo(() => {
@@ -144,6 +173,12 @@ export default function InventoryItems({ items, categories }: PageProps) {
 
         editForm.setData({
             name: editingItem.name,
+            brand_id: editingItem.brand_id ?? '',
+            serial_number: editingItem.serial_number ?? '',
+            sku: editingItem.sku ?? '',
+            barcode: editingItem.barcode ?? '',
+            has_warranty: editingItem.has_warranty,
+            warranty_months: editingItem.warranty_months ? String(editingItem.warranty_months) : '',
             category_id: editingItem.category_id ?? '',
             price: editingItem.price,
             cost: editingItem.cost,
@@ -159,18 +194,41 @@ export default function InventoryItems({ items, categories }: PageProps) {
         const interval = setInterval(() => {
             // Only refresh if page is visible and no modals are open
             if (document.visibilityState === 'visible' && 
-                !isCreateOpen && !isEditOpen) {
-                router.reload({ only: ['items', 'categories'] });
+                !isCreateOpen && !isEditOpen && !isCreateBrandOpen) {
+                router.reload({ only: ['items', 'categories', 'brands'] });
             }
         }, 5000); // Refresh every 5 seconds
 
         return () => clearInterval(interval);
-    }, [isCreateOpen, isEditOpen]);
+    }, [isCreateOpen, isEditOpen, isCreateBrandOpen]);
 
     const handleCreateSubmit = (event: FormEvent) => {
         event.preventDefault();
         createForm.post('/inventory/items', {
             onSuccess: () => handleCreateToggle(false),
+        });
+    };
+
+    const handleCreateBrandToggle = (open: boolean) => {
+        setIsCreateBrandOpen(open);
+        if (!open) {
+            createBrandForm.reset();
+            createBrandForm.clearErrors();
+        }
+    };
+
+    const handleCreateBrandSubmit = (event: FormEvent) => {
+        event.preventDefault();
+        
+        createBrandForm.post('/inventory/brands', {
+            onSuccess: () => {
+                // Close dialog and reset form
+                setIsCreateBrandOpen(false);
+                createBrandForm.reset();
+                
+                // Reload brands to get the newly created one
+                router.reload({ only: ['brands'] });
+            },
         });
     };
 
@@ -207,7 +265,7 @@ export default function InventoryItems({ items, categories }: PageProps) {
                             </Button>
                         </div>
                     </div>
-                    <Table className="min-w-[720px]">
+                    <Table className="min-w-180">
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Name</TableHead>
@@ -349,6 +407,135 @@ export default function InventoryItems({ items, categories }: PageProps) {
                                 </p>
                             )}
                         </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <div className="flex items-center justify-between">
+                                    <Label htmlFor="create-brand">Brand</Label>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => handleCreateBrandToggle(true)}
+                                    >
+                                        + Add
+                                    </Button>
+                                </div>
+                                <Select
+                                    value={
+                                        createForm.data.brand_id
+                                            ? String(createForm.data.brand_id)
+                                            : ''
+                                    }
+                                    onValueChange={(value) =>
+                                        createForm.setData(
+                                            'brand_id',
+                                            value ? Number(value) : ''
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger
+                                        className={
+                                            createForm.errors.brand_id
+                                                ? 'border-destructive focus-visible:ring-destructive'
+                                                : undefined
+                                        }
+                                    >
+                                        <SelectValue placeholder="Select brand" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {brands.map((brand) => (
+                                            <SelectItem
+                                                key={brand.id}
+                                                value={String(brand.id)}
+                                            >
+                                                {brand.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {createForm.errors.brand_id && (
+                                    <p className="text-xs text-destructive">
+                                        {createForm.errors.brand_id}
+                                    </p>
+                                )}
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="create-serial">Serial Number</Label>
+                                <Input
+                                    id="create-serial"
+                                    value={createForm.data.serial_number}
+                                    onChange={(event) =>
+                                        createForm.setData('serial_number', event.target.value)
+                                    }
+                                    placeholder="Serial number"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="create-sku">SKU</Label>
+                                <Input
+                                    id="create-sku"
+                                    value={createForm.data.sku}
+                                    onChange={(event) =>
+                                        createForm.setData('sku', event.target.value)
+                                    }
+                                    placeholder="SKU"
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="create-barcode">Barcode</Label>
+                                <Input
+                                    id="create-barcode"
+                                    value={createForm.data.barcode}
+                                    onChange={(event) =>
+                                        createForm.setData('barcode', event.target.value)
+                                    }
+                                    placeholder="Barcode"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="create-warranty"
+                                checked={createForm.data.has_warranty}
+                                onCheckedChange={(checked) =>
+                                    createForm.setData(
+                                        'has_warranty',
+                                        checked === true
+                                    )
+                                }
+                            />
+                            <Label htmlFor="create-warranty" className="cursor-pointer">
+                                Has warranty
+                            </Label>
+                        </div>
+
+                        {createForm.data.has_warranty && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="create-warranty-months">Warranty (months)</Label>
+                                <Input
+                                    id="create-warranty-months"
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="^\d*$"
+                                    value={createForm.data.warranty_months}
+                                    onChange={(event) =>
+                                        createForm.setData(
+                                            'warranty_months',
+                                            event.target.value
+                                        )
+                                    }
+                                    placeholder="0"
+                                    disabled={!createForm.data.has_warranty}
+                                />
+                            </div>
+                        )}
 
                         <div className="grid gap-2">
                             <Label htmlFor="create-category">Category</Label>
@@ -552,6 +739,119 @@ export default function InventoryItems({ items, categories }: PageProps) {
                             )}
                         </div>
 
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-brand">Brand</Label>
+                                <Select
+                                    value={editForm.data.brand_id ? String(editForm.data.brand_id) : ''}
+                                    onValueChange={(value) =>
+                                        editForm.setData(
+                                            'brand_id',
+                                            value ? Number(value) : ''
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger id="edit-brand">
+                                        <SelectValue placeholder="Select a brand" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {brands.map((brand) => (
+                                            <SelectItem
+                                                key={brand.id}
+                                                value={String(brand.id)}
+                                            >
+                                                {brand.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleCreateBrandToggle(true)}
+                                    className="w-full"
+                                >
+                                    + Add Brand
+                                </Button>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-serial">Serial Number</Label>
+                                <Input
+                                    id="edit-serial"
+                                    value={editForm.data.serial_number}
+                                    onChange={(event) =>
+                                        editForm.setData('serial_number', event.target.value)
+                                    }
+                                    placeholder="Serial number"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-sku">SKU</Label>
+                                <Input
+                                    id="edit-sku"
+                                    value={editForm.data.sku}
+                                    onChange={(event) =>
+                                        editForm.setData('sku', event.target.value)
+                                    }
+                                    placeholder="SKU"
+                                />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-barcode">Barcode</Label>
+                                <Input
+                                    id="edit-barcode"
+                                    value={editForm.data.barcode}
+                                    onChange={(event) =>
+                                        editForm.setData('barcode', event.target.value)
+                                    }
+                                    placeholder="Barcode"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="edit-warranty"
+                                checked={editForm.data.has_warranty}
+                                onCheckedChange={(checked) =>
+                                    editForm.setData(
+                                        'has_warranty',
+                                        checked === true
+                                    )
+                                }
+                            />
+                            <Label htmlFor="edit-warranty" className="cursor-pointer">
+                                Has warranty
+                            </Label>
+                        </div>
+
+                        {editForm.data.has_warranty && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-warranty-months">Warranty (months)</Label>
+                                <Input
+                                    id="edit-warranty-months"
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="^\d*$"
+                                    value={editForm.data.warranty_months}
+                                    onChange={(event) =>
+                                        editForm.setData(
+                                            'warranty_months',
+                                            event.target.value
+                                        )
+                                    }
+                                    placeholder="0"
+                                    disabled={!editForm.data.has_warranty}
+                                />
+                            </div>
+                        )}
+
                         <div className="grid gap-2">
                             <Label htmlFor="edit-category">Category</Label>
                             <Select
@@ -716,6 +1016,51 @@ export default function InventoryItems({ items, categories }: PageProps) {
                             </Button>
                             <Button type="submit" disabled={editForm.processing}>
                                 Update item
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isCreateBrandOpen} onOpenChange={setIsCreateBrandOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Add Brand</DialogTitle>
+                    </DialogHeader>
+                    <hr />
+                    <form onSubmit={handleCreateBrandSubmit} className="space-y-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="brand-name">Brand Name</Label>
+                            <Input
+                                id="brand-name"
+                                value={createBrandForm.data.name}
+                                onChange={(event) =>
+                                    createBrandForm.setData('name', event.target.value)
+                                }
+                                placeholder="Enter brand name"
+                                className={
+                                    createBrandForm.errors.name
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : undefined
+                                }
+                            />
+                            {createBrandForm.errors.name && (
+                                <p className="text-xs text-destructive">
+                                    {createBrandForm.errors.name}
+                                </p>
+                            )}
+                        </div>
+
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => setIsCreateBrandOpen(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="submit" disabled={createBrandForm.processing}>
+                                Add Brand
                             </Button>
                         </DialogFooter>
                     </form>

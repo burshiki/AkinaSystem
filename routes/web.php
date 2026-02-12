@@ -120,6 +120,10 @@ Route::prefix('inventory')
                 'destroy' => 'inventory.items.destroy',
             ]);
 
+        Route::post('brands', [ItemController::class, 'storeBrand'])
+            ->middleware('permission:access inventory-items')
+            ->name('inventory.brands.store');
+
         Route::resource('categories', CategoryController::class)
             ->except(['show', 'create', 'edit'])
             ->middleware('permission:access inventory-categories')
