@@ -36,12 +36,9 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        $hasOpenRegister = $request->user() 
-            ? CashRegisterSession::query()
-                ->where('status', 'open')
-                ->where('opened_by', $request->user()->id)
-                ->exists()
-            : false;
+        $hasOpenRegister = CashRegisterSession::query()
+            ->where('status', 'open')
+            ->exists();
 
         return [
             ...parent::share($request),

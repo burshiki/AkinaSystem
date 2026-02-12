@@ -22,6 +22,13 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 
@@ -36,6 +43,7 @@ type RegisterSession = {
     id: number;
     opening_balance: string;
     cash_sales: string;
+    bank_sales: string;
     debt_repaid: string;
     expected_cash: string;
     actual_cash?: string | null;
@@ -49,9 +57,20 @@ type ItemSaleRow = {
     revenue: string;
 };
 
+type MoneyFlowRow = {
+    id: number;
+    type: 'in' | 'out';
+    amount: string;
+    category: string | null;
+    description: string | null;
+    user: string;
+    created_at: string | null;
+};
+
 type PageProps = {
     session: RegisterSession | null;
     itemSales: ItemSaleRow[];
+    moneyFlow: MoneyFlowRow[];
 };
 
 type ShiftReviewData = {
@@ -59,6 +78,7 @@ type ShiftReviewData = {
         id: number;
         opening_balance: string;
         cash_sales: string;
+        bank_sales: string;
         debt_repaid: string;
         expected_cash: string;
         opened_at: string;
@@ -81,7 +101,7 @@ type ShiftReviewData = {
     totalSales: number;
 };
 
-export default function CashRegisterIndex({ session, itemSales }: PageProps) {
+export default function CashRegisterIndex({ session, itemSales, moneyFlow }: PageProps) {
     const page = usePage();
     const errors = page.props.errors as Record<string, string> | undefined;
     const [isReviewOpen, setIsReviewOpen] = useState(false);
@@ -89,6 +109,9 @@ export default function CashRegisterIndex({ session, itemSales }: PageProps) {
     const [actualCashInput, setActualCashInput] = useState('');
     const [isLoadingReview, setIsLoadingReview] = useState(false);
     const [isFinalizing, setIsFinalizing] = useState(false);
+    const [moneyFlowFilter, setMoneyFlowFilter] = useState<
+        'all' | 'sale' | 'refund' | 'opening_balance' | 'debt_payment'
+    >('all');
     
     const openForm = useForm({
         opening_balance: '',
@@ -124,6 +147,13 @@ export default function CashRegisterIndex({ session, itemSales }: PageProps) {
           })
         : '0.00';
 
+    const bankSales = session
+        ? Number(session.bank_sales || 0).toLocaleString('en-PH', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+          })
+        : '0.00';
+
     const debtRepaid = session
         ? Number(session.debt_repaid || 0).toLocaleString('en-PH', {
               minimumFractionDigits: 2,
@@ -136,7 +166,7 @@ export default function CashRegisterIndex({ session, itemSales }: PageProps) {
         const interval = setInterval(() => {
             // Only refresh if page is visible
             if (document.visibilityState === 'visible') {
-                router.reload({ only: ['session', 'itemSales'] });
+                router.reload({ only: ['session', 'itemSales', 'moneyFlow'] });
             }
         }, 5000); // Refresh every 5 seconds
 
@@ -214,6 +244,14 @@ export default function CashRegisterIndex({ session, itemSales }: PageProps) {
     };
 
     const variance = calculateVariance();
+
+    const filteredMoneyFlow = useMemo(() => {
+        if (moneyFlowFilter === 'all') {
+            return moneyFlow;
+        }
+
+        return moneyFlow.filter((tx) => tx.category === moneyFlowFilter);
+    }, [moneyFlow, moneyFlowFilter]);
 
     const handlePrint = () => {
         if (!reviewData || !variance) return;
@@ -365,6 +403,10 @@ export default function CashRegisterIndex({ session, itemSales }: PageProps) {
                         <span class="value">₱${reviewData.session.cash_sales}</span>
                     </div>
                     <div class="row">
+                        <span class="label">Online Bank Sales:</span>
+                        <span class="value">₱${reviewData.session.bank_sales}</span>
+                    </div>
+                    <div class="row">
                         <span class="label">Debt Repaid:</span>
                         <span class="value">₱${reviewData.session.debt_repaid}</span>
                     </div>
@@ -513,13 +555,21 @@ export default function CashRegisterIndex({ session, itemSales }: PageProps) {
                                             ₱{openingBalance}
                                         </span>
                                     </div>
-                                    <div className="grid gap-4 sm:grid-cols-2">
+                                    <div className="grid gap-4 sm:grid-cols-3">
                                         <div className="rounded-2xl bg-indigo-50 px-5 py-5">
                                             <div className="text-xs font-semibold uppercase text-indigo-400">
                                                 Cash Sales
                                             </div>
                                             <div className="text-lg font-semibold text-indigo-600">
                                                 +₱{cashSales}
+                                            </div>
+                                        </div>
+                                        <div className="rounded-2xl bg-sky-50 px-5 py-5">
+                                            <div className="text-xs font-semibold uppercase text-sky-400">
+                                                Online Bank Sales
+                                            </div>
+                                            <div className="text-lg font-semibold text-sky-600">
+                                                +₱{bankSales}
                                             </div>
                                         </div>
                                         <div className="rounded-2xl bg-emerald-50 px-5 py-5">
@@ -614,6 +664,91 @@ export default function CashRegisterIndex({ session, itemSales }: PageProps) {
                                 </Table>
                             </CardContent>
                         </Card>
+
+                        <Card className="rounded-3xl border bg-white">
+                            <CardHeader>
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div className="text-sm font-semibold">
+                                        Current Session Money Flow (₱)
+                                    </div>
+                                    <div className="w-full sm:w-56">
+                                        <Select
+                                            value={moneyFlowFilter}
+                                            onValueChange={(value) =>
+                                                setMoneyFlowFilter(
+                                                    value as
+                                                        | 'all'
+                                                        | 'sale'
+                                                        | 'refund'
+                                                        | 'opening_balance'
+                                                        | 'debt_payment'
+                                                )
+                                            }
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="All categories" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All categories</SelectItem>
+                                                <SelectItem value="sale">Sales</SelectItem>
+                                                <SelectItem value="debt_payment">Debt Payments</SelectItem>
+                                                <SelectItem value="refund">Refunds</SelectItem>
+                                                <SelectItem value="opening_balance">Opening Balance</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Type</TableHead>
+                                            <TableHead className="text-right">Amount</TableHead>
+                                            <TableHead>Category</TableHead>
+                                            <TableHead>Description</TableHead>
+                                            <TableHead>User</TableHead>
+                                            <TableHead className="text-right">Time</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {filteredMoneyFlow.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell
+                                                    colSpan={6}
+                                                    className="text-center text-sm text-muted-foreground"
+                                                >
+                                                    No money flow found for this filter
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            filteredMoneyFlow.map((tx) => (
+                                                <TableRow key={tx.id}>
+                                                    <TableCell className="font-medium">
+                                                        {tx.type === 'in' ? 'Cash In' : 'Cash Out'}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        {tx.type === 'in' ? '+' : '-'}₱{tx.amount}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {tx.category || '—'}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {tx.description || '—'}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {tx.user}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-sm text-muted-foreground">
+                                                        {tx.created_at || '—'}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
                     </div>
                 )}
             </div>
@@ -650,6 +785,10 @@ export default function CashRegisterIndex({ session, itemSales }: PageProps) {
                                                     <div className="flex justify-between">
                                                         <span>Cash Sales:</span>
                                                         <span className="font-medium">+₱{reviewData.session.cash_sales}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span>Online Bank Sales:</span>
+                                                        <span className="font-medium">₱{reviewData.session.bank_sales}</span>
                                                     </div>
                                                     <div className="flex justify-between border-t border-indigo-200 pt-2">
                                                         <span>Debt Repaid:</span>

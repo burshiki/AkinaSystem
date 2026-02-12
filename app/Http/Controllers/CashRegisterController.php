@@ -18,11 +18,23 @@ class CashRegisterController extends Controller
 {
     public function index(Request $request): Response
     {
-        $session = CashRegisterSession::query()
-            ->where('status', 'open')
-            ->where('opened_by', $request->user()->id)
+        $sessionQuery = CashRegisterSession::query()
+            ->where('status', 'open');
+
+        if (!$request->user()?->is_admin) {
+            $sessionQuery->where('opened_by', $request->user()->id);
+        }
+
+        $session = $sessionQuery
             ->latest('opened_at')
             ->first();
+
+        $bankSales = $session
+            ? (float) Sale::query()
+                ->where('cash_register_session_id', $session->id)
+                ->where('payment_method', 'bank')
+                ->sum('total')
+            : 0;
 
         $itemSales = $session 
             ? SaleItem::query()
@@ -46,6 +58,24 @@ class CashRegisterController extends Controller
                 ])
             : [];
 
+        $moneyFlow = $session
+            ? MoneyTransaction::query()
+                ->where('source_type', 'cash_register')
+                ->where('source_id', $session->id)
+                ->with('user:id,name')
+                ->orderBy('created_at', 'desc')
+                ->get()
+                ->map(fn ($tx) => [
+                    'id' => $tx->id,
+                    'type' => $tx->type,
+                    'amount' => number_format($tx->amount, 2),
+                    'category' => $tx->category,
+                    'description' => $tx->description,
+                    'user' => $tx->user?->name ?? 'Unknown',
+                    'created_at' => $tx->created_at?->format('M d, Y H:i:s'),
+                ])
+            : [];
+
         // Calculate expected cash fresh to ensure accuracy
         $expectedCash = $session ? (
             (float)$session->opening_balance + 
@@ -58,12 +88,14 @@ class CashRegisterController extends Controller
                 'id' => $session->id,
                 'opening_balance' => $session->opening_balance,
                 'cash_sales' => $session->cash_sales,
+                'bank_sales' => $bankSales,
                 'debt_repaid' => $session->debt_repaid,
                 'expected_cash' => $expectedCash,
                 'actual_cash' => $session->actual_cash,
                 'opened_at' => $session->opened_at?->format('M d, Y H:i'),
             ] : null,
             'itemSales' => $itemSales,
+            'moneyFlow' => $moneyFlow,
         ]);
     }
 
@@ -162,11 +194,17 @@ class CashRegisterController extends Controller
                         (float)$session->cash_sales + 
                         (float)$session->debt_repaid;
 
+        $bankSales = (float) Sale::query()
+            ->where('cash_register_session_id', $session->id)
+            ->where('payment_method', 'bank')
+            ->sum('total');
+
         return response()->json([
             'session' => [
                 'id' => $session->id,
                 'opening_balance' => number_format($session->opening_balance, 2),
                 'cash_sales' => number_format($session->cash_sales, 2),
+                'bank_sales' => number_format($bankSales, 2),
                 'debt_repaid' => number_format($session->debt_repaid, 2),
                 'expected_cash' => number_format($expectedCash, 2),
                 'opened_at' => $session->opened_at?->format('M d, Y H:i A'),
