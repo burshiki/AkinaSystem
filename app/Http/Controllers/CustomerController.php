@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\MoneyTransaction;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -84,6 +85,16 @@ class CustomerController extends Controller
 
         if ($openSession) {
             $openSession->increment('debt_repaid', $validated['amount']);
+            
+            // Log debt payment transaction
+            MoneyTransaction::logCashIn(
+                amount: (float) $validated['amount'],
+                sessionId: $openSession->id,
+                category: 'debt_payment',
+                userId: $request->user()->id,
+                description: "Debt payment from {$customer->name}",
+                reference: $customer
+            );
         }
 
         return redirect()->route('customers.index');

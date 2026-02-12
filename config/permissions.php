@@ -13,7 +13,7 @@ return [
         'access inventory-assembly' => 'Inventory - Item Assembly',
         'access inventory-suppliers' => 'Inventory - Supplier',
         'access inventory-log' => 'Inventory - Item Log',
-        'access sales-history' => 'Sales History',
+        'access register-history' => 'Register History',
         'access customers' => 'Customers',
         'access users' => 'Users',
         'access reports' => 'Reports',

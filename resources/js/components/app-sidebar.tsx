@@ -81,10 +81,10 @@ const mainNavItems: NavItem[] = [
         ],
     },
     {
-        title: 'Sales History',
-        href: '/sales-history',
+        title: 'Register History',
+        href: '/register-history',
         icon: HistoryIcon,
-        permission: 'access sales-history',
+        permission: 'access register-history',
     },
     {
         title: 'Customers',

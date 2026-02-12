@@ -2,9 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BankAccount;
 use App\Models\CashRegisterSession;
 use App\Models\CashRegisterSessionAccessRequest;
 use App\Models\CashRegisterSessionAudit;
+use App\Models\Customer;
+use App\Models\Item;
+use App\Models\ItemLog;
+use App\Models\MoneyTransaction;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\User;
@@ -23,8 +28,8 @@ class SalesHistoryController extends Controller
             ->with(['opener', 'closer'])
             ->where('status', 'closed')
             ->latest('opened_at')
-            ->get()
-            ->map(function (CashRegisterSession $session) use ($request) {
+            ->paginate(10)
+            ->through(function (CashRegisterSession $session) use ($request) {
                 $expectedCash = (float) $session->opening_balance
                     + (float) $session->cash_sales
                     + (float) $session->debt_repaid;
@@ -69,7 +74,7 @@ class SalesHistoryController extends Controller
                 ]);
         }
 
-        return Inertia::render('SalesHistory/Index', [
+        return Inertia::render('RegisterHistory/Index', [
             'sessions' => $sessions,
             'pendingRequests' => $pendingRequests,
             'isAdmin' => $request->user()->is_admin,
@@ -96,15 +101,25 @@ class SalesHistoryController extends Controller
 
         $sales = Sale::query()
             ->where('cash_register_session_id', $session->id)
-            ->with('customer')
+            ->with(['customer', 'items.item'])
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(fn ($sale) => [
                 'id' => $sale->id,
+                'parent_sale_id' => $sale->parent_sale_id,
                 'customer' => $sale->customer?->name ?? 'Walk-in Customer',
                 'payment_method' => $sale->payment_method,
                 'total' => number_format($sale->total, 2),
                 'created_at' => $sale->created_at?->format('M d, Y H:i'),
+                'status' => $sale->status,
+                'items' => $sale->items->map(fn (SaleItem $item) => [
+                    'id' => $item->id,
+                    'item_id' => $item->item_id,
+                    'name' => $item->item?->name ?? 'Item',
+                    'quantity' => (int) $item->quantity,
+                    'price' => number_format($item->price, 2),
+                    'subtotal' => number_format($item->subtotal, 2),
+                ])->values(),
             ]);
 
         $saleIds = Sale::where('cash_register_session_id', $session->id)->pluck('id');
@@ -132,6 +147,33 @@ class SalesHistoryController extends Controller
             + (float) $session->cash_sales
             + (float) $session->debt_repaid;
 
+        $bankAccounts = BankAccount::query()
+            ->select('id', 'bank_name', 'account_name', 'account_number')
+            ->orderBy('bank_name')
+            ->get()
+            ->map(fn ($account) => [
+                'id' => $account->id,
+                'bank_name' => $account->bank_name,
+                'account_name' => $account->account_name,
+                'account_number' => $account->account_number,
+            ]);
+
+        $transactions = MoneyTransaction::query()
+            ->where('source_type', 'cash_register')
+            ->where('source_id', $session->id)
+            ->with('user:id,name')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn ($tx) => [
+                'id' => $tx->id,
+                'type' => $tx->type,
+                'amount' => number_format($tx->amount, 2),
+                'category' => $tx->category,
+                'description' => $tx->description,
+                'user' => $tx->user?->name ?? 'Unknown',
+                'created_at' => $tx->created_at?->format('M d, Y H:i:s'),
+            ]);
+
         return response()->json([
             'session' => [
                 'id' => $session->id,
@@ -148,6 +190,270 @@ class SalesHistoryController extends Controller
             'sales' => $sales,
             'itemSales' => $itemSales,
             'totalSales' => $sales->count(),
+            'bankAccounts' => $bankAccounts,
+            'transactions' => $transactions,
+        ]);
+    }
+
+    public function returnSale(Request $request, Sale $sale): JsonResponse
+    {
+        $session = $sale->cashRegisterSession;
+
+        if (!$session || $session->status !== 'closed') {
+            return response()->json(['error' => 'Session must be closed to process a return.'], 400);
+        }
+
+        if ($sale->status !== 'completed') {
+            return response()->json(['error' => 'Only completed sales can be returned.'], 400);
+        }
+
+        if (!$request->user()->is_admin) {
+            $approved = CashRegisterSessionAccessRequest::query()
+                ->where('cash_register_session_id', $session->id)
+                ->where('requested_by', $request->user()->id)
+                ->where('status', 'approved')
+                ->exists();
+
+            if (!$approved) {
+                return response()->json(['error' => 'Approval required.'], 403);
+            }
+        }
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id' => ['required', 'integer', 'exists:sale_items,id'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+        ]);
+
+        $sale->load(['items.item']);
+
+        $returnItems = collect($validated['items'])
+            ->keyBy('id')
+            ->map(fn ($item) => (int) $item['quantity']);
+
+        $returnSaleIds = Sale::query()
+            ->where('parent_sale_id', $sale->id)
+            ->pluck('id');
+
+        $returnedByItem = SaleItem::query()
+            ->whereIn('sale_id', $returnSaleIds)
+            ->select('item_id', DB::raw('ABS(SUM(quantity)) as returned_qty'))
+            ->groupBy('item_id')
+            ->pluck('returned_qty', 'item_id');
+
+        $lines = [];
+        $refundSubtotal = 0.0;
+
+        foreach ($sale->items as $item) {
+            $requestedQty = $returnItems->get($item->id, 0);
+            if ($requestedQty <= 0) {
+                continue;
+            }
+
+            $soldQty = (int) $item->quantity;
+            $alreadyReturned = (int) ($returnedByItem[$item->item_id] ?? 0);
+            $availableQty = $soldQty - $alreadyReturned;
+
+            if ($requestedQty > $availableQty) {
+                return response()->json([
+                    'error' => "Return quantity exceeds available items for {$item->item?->name}.",
+                ], 422);
+            }
+
+            $lineTotal = $requestedQty * (float) $item->price;
+            $refundSubtotal += $lineTotal;
+
+            $lines[] = [
+                'item' => $item->item,
+                'quantity' => $requestedQty,
+                'price' => (float) $item->price,
+                'subtotal' => $lineTotal,
+            ];
+        }
+
+        if ($refundSubtotal <= 0) {
+            return response()->json(['error' => 'Select at least one item to return.'], 422);
+        }
+
+        $refundSale = DB::transaction(function () use ($request, $sale, $session, $lines, $refundSubtotal, $validated) {
+            $refund = Sale::create([
+                'customer_id' => $sale->customer_id,
+                'user_id' => $request->user()->id,
+                'cash_register_session_id' => $session->id,
+                'parent_sale_id' => $sale->id,
+                'bank_account_id' => $sale->bank_account_id,
+                'payment_method' => $sale->payment_method,
+                'subtotal' => -$refundSubtotal,
+                'total' => -$refundSubtotal,
+                'amount_paid' => 0,
+                'change_given' => 0,
+                'status' => 'refunded',
+                'notes' => $validated['reason'],
+            ]);
+
+            foreach ($lines as $line) {
+                SaleItem::create([
+                    'sale_id' => $refund->id,
+                    'item_id' => $line['item']->id,
+                    'quantity' => -$line['quantity'],
+                    'price' => $line['price'],
+                    'subtotal' => -$line['subtotal'],
+                ]);
+
+                $oldStock = $line['item']->stock;
+                $newStock = $oldStock + $line['quantity'];
+                Item::where('id', $line['item']->id)->update(['stock' => $newStock]);
+
+                ItemLog::logStockChange(
+                    itemId: $line['item']->id,
+                    type: 'reversed',
+                    quantityChange: $line['quantity'],
+                    oldStock: $oldStock,
+                    newStock: $newStock,
+                    description: "Return for Sale #{$sale->id} (Return #{$refund->id})",
+                    userId: $request->user()->id,
+                    referenceType: Sale::class,
+                    referenceId: $refund->id
+                );
+            }
+
+            if ($sale->payment_method === 'cash') {
+                $session->increment('cash_sales', -$refundSubtotal);
+                $session->increment('expected_cash', -$refundSubtotal);
+            } elseif ($sale->payment_method === 'credit' && $sale->customer_id) {
+                Customer::where('id', $sale->customer_id)->decrement('debt_balance', $refundSubtotal);
+            }
+
+            $totalReturned = (float) Sale::query()
+                ->where('parent_sale_id', $sale->id)
+                ->select(DB::raw('COALESCE(SUM(ABS(total)), 0) as total_returned'))
+                ->value('total_returned');
+
+            if ($totalReturned >= (float) $sale->total) {
+                $sale->update(['status' => 'refunded']);
+            }
+
+            return $refund;
+        });
+
+        return response()->json([
+            'status' => 'ok',
+            'refund_id' => $refundSale->id,
+            'refund_amount' => abs($refundSubtotal),
+        ]);
+    }
+
+    public function setRefundSource(Request $request, Sale $sale): JsonResponse
+    {
+        if ($sale->status !== 'refunded' || !$sale->parent_sale_id) {
+            return response()->json(['error' => 'Invalid refund sale.'], 400);
+        }
+
+        if ($sale->refund_source) {
+            return response()->json(['error' => 'Refund source already set.'], 400);
+        }
+
+        $validated = $request->validate([
+            'refund_source' => ['required', 'in:cash,bank'],
+            'bank_account_id' => ['required_if:refund_source,bank', 'nullable', 'exists:bank_accounts,id'],
+        ]);
+
+        // If cash refund, find the current open register
+        if ($validated['refund_source'] === 'cash') {
+            $currentSession = CashRegisterSession::query()
+                ->where('status', 'open')
+                ->first();
+
+            if (!$currentSession) {
+                return response()->json(['error' => 'No open cash register session found. Please open a register first.'], 400);
+            }
+        }
+
+        DB::transaction(function () use ($sale, $validated, $request) {
+            $refundAmount = abs((float) $sale->total);
+
+            $sale->update([
+                'refund_source' => $validated['refund_source'],
+                'refund_bank_account_id' => $validated['bank_account_id'] ?? null,
+            ]);
+
+            if ($validated['refund_source'] === 'cash') {
+                // Deduct from the current open register, not the closed one
+                $currentSession = CashRegisterSession::query()
+                    ->where('status', 'open')
+                    ->first();
+
+                if ($currentSession) {
+                    // Deduct from cash sales and expected cash
+                    $currentSession->decrement('cash_sales', $refundAmount);
+                    $currentSession->decrement('expected_cash', $refundAmount);
+
+                    // Log the transaction
+                    MoneyTransaction::logCashOut(
+                        amount: $refundAmount,
+                        sessionId: $currentSession->id,
+                        category: 'refund',
+                        userId: $request->user()->id,
+                        description: "Refund for Sale #{$sale->parent_sale_id}",
+                        reference: $sale
+                    );
+                }
+            } elseif ($validated['refund_source'] === 'bank' && $validated['bank_account_id']) {
+                // Log bank transaction
+                MoneyTransaction::logBankOut(
+                    amount: $refundAmount,
+                    bankAccountId: $validated['bank_account_id'],
+                    category: 'refund',
+                    userId: $request->user()->id,
+                    description: "Refund for Sale #{$sale->parent_sale_id}",
+                    reference: $sale
+                );
+            }
+        });
+
+        return response()->json([
+            'status' => 'ok',
+            'message' => 'Refund source recorded successfully.',
+        ]);
+    }
+
+    public function getTransactions(Request $request, CashRegisterSession $session): JsonResponse
+    {
+        if ($session->status !== 'closed') {
+            return response()->json(['error' => 'Session is not closed.'], 400);
+        }
+
+        if (!$request->user()->is_admin) {
+            $approved = CashRegisterSessionAccessRequest::query()
+                ->where('cash_register_session_id', $session->id)
+                ->where('requested_by', $request->user()->id)
+                ->where('status', 'approved')
+                ->exists();
+
+            if (!$approved) {
+                return response()->json(['error' => 'Approval required.'], 403);
+            }
+        }
+
+        $transactions = MoneyTransaction::query()
+            ->where('source_type', 'cash_register')
+            ->where('source_id', $session->id)
+            ->with('user:id,name')
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(fn ($tx) => [
+                'id' => $tx->id,
+                'type' => $tx->type,
+                'amount' => number_format($tx->amount, 2),
+                'category' => $tx->category,
+                'description' => $tx->description,
+                'user' => $tx->user?->name ?? 'Unknown',
+                'created_at' => $tx->created_at?->format('M d, Y H:i:s'),
+            ]);
+
+        return response()->json([
+            'transactions' => $transactions,
         ]);
     }
 

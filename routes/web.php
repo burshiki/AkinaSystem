@@ -57,21 +57,25 @@ Route::post('cash-register/finalize', [CashRegisterController::class, 'finalize'
     ->middleware(['auth', 'verified', 'permission:access drawer'])
     ->name('cash-register.finalize');
 
-Route::prefix('sales-history')
-    ->middleware(['auth', 'verified', 'permission:access sales-history'])
+Route::prefix('register-history')
+    ->middleware(['auth', 'verified', 'permission:access register-history'])
     ->group(function () {
         Route::get('/', [SalesHistoryController::class, 'index'])
-            ->name('sales-history.index');
+            ->name('register-history.index');
         Route::get('{session}', [SalesHistoryController::class, 'show'])
-            ->name('sales-history.show');
+            ->name('register-history.show');
         Route::post('{session}/request-access', [SalesHistoryController::class, 'requestAccess'])
-            ->name('sales-history.request-access');
+            ->name('register-history.request-access');
         Route::post('requests/{accessRequest}/approve', [SalesHistoryController::class, 'approve'])
-            ->name('sales-history.approve');
+            ->name('register-history.approve');
         Route::post('requests/{accessRequest}/deny', [SalesHistoryController::class, 'deny'])
-            ->name('sales-history.deny');
+            ->name('register-history.deny');
+        Route::post('sales/{sale}/return', [SalesHistoryController::class, 'returnSale'])
+            ->name('register-history.return');
+        Route::post('sales/{sale}/refund-source', [SalesHistoryController::class, 'setRefundSource'])
+            ->name('register-history.refund-source');
         Route::put('{session}', [SalesHistoryController::class, 'update'])
-            ->name('sales-history.update');
+            ->name('register-history.update');
     });
 
 Route::resource('users', UserController::class)

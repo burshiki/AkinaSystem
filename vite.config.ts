@@ -20,7 +20,14 @@ export default defineConfig({
         wayfinder({
             formVariants: true,
         }),
+        
     ],
+    server: {
+        host: '0.0.0.0', // This exposes Vite to your local network
+        hmr: {
+            host: '192.168.10.185', // Replace with your actual local IP
+        },
+    },
     esbuild: {
         jsx: 'automatic',
     },

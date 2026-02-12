@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\Item;
 use App\Models\ItemCategory;
 use App\Models\ItemLog;
+use App\Models\MoneyTransaction;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use Illuminate\Http\Request;
@@ -182,9 +183,29 @@ class PosController extends Controller
 
             if ($validated['payment_method'] === 'cash') {
                 $openSession->increment('cash_sales', $total);
+                
+                // Log cash transaction
+                MoneyTransaction::logCashIn(
+                    amount: (float) $total,
+                    sessionId: $openSession->id,
+                    category: 'sale',
+                    userId: $request->user()->id,
+                    description: "Sale #{$sale->id}",
+                    reference: $sale
+                );
             } elseif ($validated['payment_method'] === 'credit' && $validated['customer_id']) {
                 // Increment customer's debt balance
                 Customer::where('id', $validated['customer_id'])->increment('debt_balance', $total);
+            } elseif ($validated['payment_method'] === 'bank' && $validated['bank_account_id']) {
+                // Log bank transaction
+                MoneyTransaction::logBankIn(
+                    amount: (float) $total,
+                    bankAccountId: $validated['bank_account_id'],
+                    category: 'sale',
+                    userId: $request->user()->id,
+                    description: "Sale #{$sale->id}",
+                    reference: $sale
+                );
             }
 
             return $sale;
@@ -288,9 +309,19 @@ class PosController extends Controller
             return back()->withErrors(['error' => 'No open cash register session']);
         }
 
-        DB::transaction(function () use ($customer, $validated, $openSession) {
+        DB::transaction(function () use ($customer, $validated, $openSession, $request) {
             $customer->decrement('debt_balance', $validated['amount']);
             $openSession->increment('debt_repaid', $validated['amount']);
+            
+            // Log debt payment as cash in
+            MoneyTransaction::logCashIn(
+                amount: (float) $validated['amount'],
+                sessionId: $openSession->id,
+                category: 'debt_payment',
+                userId: $request->user()->id,
+                description: "Debt payment from {$customer->name}",
+                reference: $customer
+            );
         });
 
         return redirect()->route('pos.index')->with('success', "Debt payment of ₱{$validated['amount']} recorded for {$customer->name}");

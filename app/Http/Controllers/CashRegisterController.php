@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\CashRegisterSession;
 use App\Models\Customer;
 use App\Models\Item;
+use App\Models\MoneyTransaction;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use Illuminate\Http\RedirectResponse;
@@ -82,7 +83,7 @@ class CashRegisterController extends Controller
 
         $openingBalance = (float) $validated['opening_balance'];
 
-        CashRegisterSession::create([
+        $session = CashRegisterSession::create([
             'opened_by' => $request->user()->id,
             'opening_balance' => $openingBalance,
             'cash_sales' => 0,
@@ -91,6 +92,17 @@ class CashRegisterController extends Controller
             'status' => 'open',
             'opened_at' => now(),
         ]);
+
+        // Log opening balance transaction
+        if ($openingBalance > 0) {
+            MoneyTransaction::logCashIn(
+                amount: $openingBalance,
+                sessionId: $session->id,
+                category: 'opening_balance',
+                userId: $request->user()->id,
+                description: 'Opening balance for cash register session'
+            );
+        }
 
         return redirect()->route('cash-register.index');
     }

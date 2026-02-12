@@ -15,6 +15,7 @@ class Sale extends Model
         'customer_id',
         'user_id',
         'cash_register_session_id',
+        'parent_sale_id',
         'bank_account_id',
         'payment_method',
         'subtotal',
@@ -25,6 +26,8 @@ class Sale extends Model
         'change_given',
         'status',
         'notes',
+        'refund_source',
+        'refund_bank_account_id',
     ];
 
     protected $casts = [
@@ -51,9 +54,19 @@ class Sale extends Model
         return $this->belongsTo(CashRegisterSession::class);
     }
 
+    public function parentSale(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_sale_id');
+    }
+
     public function bankAccount(): BelongsTo
     {
         return $this->belongsTo(BankAccount::class);
+    }
+
+    public function refundBankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class, 'refund_bank_account_id');
     }
 
     public function items(): HasMany
