@@ -44,7 +44,8 @@ type RegisterSession = {
     opening_balance: string;
     cash_sales: string;
     bank_sales: string;
-    debt_repaid: string;
+    cash_debt_repaid: string;
+    bank_debt_repaid: string;
     expected_cash: string;
     actual_cash?: string | null;
     opened_at?: string | null;
@@ -79,7 +80,8 @@ type ShiftReviewData = {
         opening_balance: string;
         cash_sales: string;
         bank_sales: string;
-        debt_repaid: string;
+        cash_debt_repaid: string;
+        bank_debt_repaid: string;
         expected_cash: string;
         opened_at: string;
         opened_by: string;
@@ -154,8 +156,15 @@ export default function CashRegisterIndex({ session, itemSales, moneyFlow }: Pag
           })
         : '0.00';
 
-    const debtRepaid = session
-        ? Number(session.debt_repaid || 0).toLocaleString('en-PH', {
+    const cashDebtRepaid = session
+        ? Number(session.cash_debt_repaid || 0).toLocaleString('en-PH', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+          })
+        : '0.00';
+
+    const bankDebtRepaid = session
+        ? Number(session.bank_debt_repaid || 0).toLocaleString('en-PH', {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
           })
@@ -402,14 +411,22 @@ export default function CashRegisterIndex({ session, itemSales, moneyFlow }: Pag
                         <span class="label">Cash Sales:</span>
                         <span class="value">₱${reviewData.session.cash_sales}</span>
                     </div>
+                    ${reviewData.session.cash_debt_repaid && Number(reviewData.session.cash_debt_repaid) > 0 ? `
+                    <div class="row">
+                        <span class="label">Cash Debt Repaid:</span>
+                        <span class="value">₱${reviewData.session.cash_debt_repaid}</span>
+                    </div>
+                    ` : ''}
                     <div class="row">
                         <span class="label">Online Bank Sales:</span>
                         <span class="value">₱${reviewData.session.bank_sales}</span>
                     </div>
+                    ${reviewData.session.bank_debt_repaid && Number(reviewData.session.bank_debt_repaid) > 0 ? `
                     <div class="row">
-                        <span class="label">Debt Repaid:</span>
-                        <span class="value">₱${reviewData.session.debt_repaid}</span>
+                        <span class="label">Bank Debt Repaid:</span>
+                        <span class="value">₱${reviewData.session.bank_debt_repaid}</span>
                     </div>
+                    ` : ''}
                     <div class="summary-row">
                         <span class="label">Expected Cash:</span>
                         <span class="value">₱${expectedDisplay}</span>
@@ -563,6 +580,11 @@ export default function CashRegisterIndex({ session, itemSales, moneyFlow }: Pag
                                             <div className="text-lg font-semibold text-indigo-600">
                                                 +₱{cashSales}
                                             </div>
+                                            {session && Number(session.cash_debt_repaid || 0) > 0 && (
+                                                <div className="mt-2 text-xs text-indigo-500">
+                                                    (incl. debt: +₱{cashDebtRepaid})
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="rounded-2xl bg-sky-50 px-5 py-5">
                                             <div className="text-xs font-semibold uppercase text-sky-400">
@@ -571,13 +593,18 @@ export default function CashRegisterIndex({ session, itemSales, moneyFlow }: Pag
                                             <div className="text-lg font-semibold text-sky-600">
                                                 +₱{bankSales}
                                             </div>
+                                            {session && Number(session.bank_debt_repaid || 0) > 0 && (
+                                                <div className="mt-2 text-xs text-sky-500">
+                                                    (incl. debt: +₱{bankDebtRepaid})
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="rounded-2xl bg-emerald-50 px-5 py-5">
                                             <div className="text-xs font-semibold uppercase text-emerald-400">
-                                                Debt Repaid
+                                                Total Debt Repaid
                                             </div>
                                             <div className="text-lg font-semibold text-emerald-600">
-                                                +₱{debtRepaid}
+                                                +₱{(Number(session?.cash_debt_repaid || 0) + Number(session?.bank_debt_repaid || 0)).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </div>
                                         </div>
                                     </div>
@@ -786,14 +813,32 @@ export default function CashRegisterIndex({ session, itemSales, moneyFlow }: Pag
                                                         <span>Cash Sales:</span>
                                                         <span className="font-medium">+₱{reviewData.session.cash_sales}</span>
                                                     </div>
+                                                    {reviewData.session.cash_debt_repaid && Number(reviewData.session.cash_debt_repaid) > 0 && (
+                                                        <div className="flex justify-between">
+                                                            <span>Cash Debt Repaid:</span>
+                                                            <span className="font-medium">+₱{reviewData.session.cash_debt_repaid}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Bank Sales Info */}
+                                            <div className="rounded-2xl border-2 border-sky-200 bg-sky-50 p-5">
+                                                <div className="text-xs font-semibold uppercase text-sky-600">Bank Sales</div>
+                                                <div className="mt-2 text-2xl font-bold text-sky-900">
+                                                    ₱{reviewData.session.bank_sales}
+                                                </div>
+                                                <div className="mt-3 space-y-2 text-sm text-sky-700">
                                                     <div className="flex justify-between">
                                                         <span>Online Bank Sales:</span>
                                                         <span className="font-medium">₱{reviewData.session.bank_sales}</span>
                                                     </div>
-                                                    <div className="flex justify-between border-t border-indigo-200 pt-2">
-                                                        <span>Debt Repaid:</span>
-                                                        <span className="font-medium">+₱{reviewData.session.debt_repaid}</span>
-                                                    </div>
+                                                    {reviewData.session.bank_debt_repaid && Number(reviewData.session.bank_debt_repaid) > 0 && (
+                                                        <div className="flex justify-between border-t border-sky-200 pt-2">
+                                                            <span>Bank Debt Repaid:</span>
+                                                            <span className="font-medium">+₱{reviewData.session.bank_debt_repaid}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
 

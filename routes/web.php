@@ -112,10 +112,6 @@ Route::resource('customers', CustomerController::class)
     ->except(['show', 'create', 'edit'])
     ->middleware(['auth', 'verified', 'permission:access customers']);
 
-Route::post('customers/{customer}/pay-debt', [CustomerController::class, 'payDebt'])
-    ->middleware(['auth', 'verified', 'permission:access customers'])
-    ->name('customers.pay-debt');
-
 Route::prefix('inventory')
     ->middleware(['auth', 'verified'])
     ->group(function () {

@@ -114,6 +114,8 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
     const collectDebtForm = useForm({
         customer_id: selectedCustomer?.id ?? null,
         amount: '',
+        payment_method: 'cash',
+        bank_account_id: '',
     });
 
     const filteredCustomers = useMemo(() => {
@@ -151,14 +153,26 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
         [cart]
     );
 
-    const hasIncompleteWarrantySerials = useMemo(
-        () =>
-            warrantyCartItems.some((item) =>
-                item.serial_numbers.length !== item.quantity ||
-                item.serial_numbers.some((serial) => serial.trim().length === 0)
-            ),
-        [warrantyCartItems]
-    );
+    const hasDuplicateWarrantySerials = useMemo(() => {
+        const seenSerials = new Set<string>();
+
+        for (const item of warrantyCartItems) {
+            for (const serial of item.serial_numbers) {
+                const normalized = serial.trim().toLowerCase();
+                if (!normalized) {
+                    continue;
+                }
+
+                if (seenSerials.has(normalized)) {
+                    return true;
+                }
+
+                seenSerials.add(normalized);
+            }
+        }
+
+        return false;
+    }, [warrantyCartItems]);
 
     // Auto-refresh to sync data across users
     useEffect(() => {
@@ -393,9 +407,14 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
         router.post('/pos/collect-debt', {
             customer_id: selectedCustomer.id,
             amount: collectDebtForm.data.amount,
+            payment_method: collectDebtForm.data.payment_method,
+            bank_account_id: collectDebtForm.data.payment_method === 'bank'
+                ? collectDebtForm.data.bank_account_id
+                : null,
         }, {
             preserveScroll: true,
             onSuccess: () => {
+                setSelectedCustomer(null);
                 setIsCollectDebtOpen(false);
                 collectDebtForm.reset();
                 router.reload({ only: ['customers'] });
@@ -801,9 +820,9 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
                                         </div>
                                     ))}
                                 </div>
-                                {hasIncompleteWarrantySerials && (
+                                {hasDuplicateWarrantySerials && (
                                     <p className="text-xs text-destructive">
-                                        Enter all serial numbers for warranty items before completing sale.
+                                        Duplicate serial numbers detected. Please ensure each non-empty serial is unique.
                                     </p>
                                 )}
                             </div>
@@ -822,7 +841,7 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
                                 disabled={
                                     isSubmitting ||
                                     (paymentMethod === 'bank' && !paymentForm.data.bank_account_id) ||
-                                    hasIncompleteWarrantySerials
+                                    hasDuplicateWarrantySerials
                                 }
                             >
                                 {isSubmitting ? 'Processing...' : 'Complete Sale'}
@@ -964,6 +983,66 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
                         )}
 
                         <div className="space-y-2">
+                            <Label htmlFor="debt-payment-method">Payment Method</Label>
+                            <Select
+                                value={collectDebtForm.data.payment_method}
+                                onValueChange={(value) =>
+                                    collectDebtForm.setData('payment_method', value as 'cash' | 'bank')
+                                }
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select payment method" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="cash">Cash</SelectItem>
+                                    <SelectItem value="bank">Bank Transfer</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {collectDebtForm.data.payment_method === 'bank' && (
+                            <div className="space-y-2">
+                                <Label htmlFor="debt-bank-account">Bank Account</Label>
+                                <Select
+                                    value={collectDebtForm.data.bank_account_id}
+                                    onValueChange={(value) =>
+                                        collectDebtForm.setData('bank_account_id', value)
+                                    }
+                                >
+                                    <SelectTrigger
+                                        className={
+                                            collectDebtForm.errors.bank_account_id
+                                                ? 'border-destructive focus-visible:ring-destructive'
+                                                : undefined
+                                        }
+                                    >
+                                        <SelectValue placeholder="Select a bank account" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {bankAccounts.map((account) => (
+                                            <SelectItem
+                                                key={account.id}
+                                                value={String(account.id)}
+                                            >
+                                                {account.bank_name} - {account.account_name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {collectDebtForm.errors.bank_account_id && (
+                                    <p className="text-xs text-destructive">
+                                        {collectDebtForm.errors.bank_account_id}
+                                    </p>
+                                )}
+                                {bankAccounts.length === 0 && (
+                                    <p className="text-xs text-muted-foreground">
+                                        No bank accounts found. Add one in Settings.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
                             <Label htmlFor="debt-amount">Payment Amount</Label>
                             <Input
                                 id="debt-amount"
@@ -1018,7 +1097,11 @@ export default function PosIndex({ items, categories, customers, bankAccounts }:
                             </Button>
                             <Button
                                 type="submit"
-                                disabled={collectDebtForm.processing}
+                                disabled={
+                                    collectDebtForm.processing ||
+                                    (collectDebtForm.data.payment_method === 'bank' &&
+                                        !collectDebtForm.data.bank_account_id)
+                                }
                                 className="bg-emerald-600 hover:bg-emerald-700"
                             >
                                 {collectDebtForm.processing

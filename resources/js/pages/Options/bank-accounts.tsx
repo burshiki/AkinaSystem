@@ -40,9 +40,12 @@ type BankAccountRow = {
 type BankTransactionRow = {
     id: number;
     bank_account_id: number | null;
-    customer: string;
-    total: string;
-    amount_paid: string;
+    amount: string;
+    type: 'in' | 'out';
+    category: string;
+    customer?: string | null;
+    description?: string | null;
+    reference_number?: number | null;
     created_at?: string | null;
 };
 
@@ -527,10 +530,10 @@ export default function ManageBankAccounts({ accounts, transactions }: PageProps
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>Date</TableHead>
-                                            <TableHead>Customer</TableHead>
-                                            <TableHead>Amount</TableHead>
-                                            <TableHead>Paid</TableHead>
-                                            <TableHead className="text-right">Sale #</TableHead>
+                                            <TableHead>Details</TableHead>
+                                            <TableHead>Category</TableHead>
+                                            <TableHead className="text-right">Amount</TableHead>
+                                            <TableHead className="text-right">Reference</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -543,25 +546,27 @@ export default function ManageBankAccounts({ accounts, transactions }: PageProps
                                                     {transaction.created_at ?? '—'}
                                                 </TableCell>
                                                 <TableCell className="font-medium">
-                                                    {transaction.customer}
+                                                    <div>{transaction.customer ?? '—'}</div>
+                                                    <div className="text-xs text-muted-foreground">
+                                                        {transaction.description ?? '—'}
+                                                    </div>
                                                 </TableCell>
-                                                <TableCell className="text-muted-foreground">
-                                                    ₱
-                                                    {parseFloat(transaction.total).toLocaleString(
-                                                        'en-PH',
-                                                        { minimumFractionDigits: 2 }
-                                                    )}
+                                                <TableCell className="text-muted-foreground capitalize">
+                                                    {transaction.category
+                                                        ? transaction.category.replace(/_/g, ' ')
+                                                        : '—'}
                                                 </TableCell>
-                                                <TableCell className="text-muted-foreground">
+                                                <TableCell className={`text-right font-semibold ${transaction.type === 'out' ? 'text-destructive' : 'text-emerald-600'}`}>
+                                                    {transaction.type === 'out' ? '−' : '+'}{' '}
                                                     ₱
-                                                    {parseFloat(
-                                                        transaction.amount_paid
-                                                    ).toLocaleString('en-PH', {
+                                                    {Number(transaction.amount ?? 0).toLocaleString('en-PH', {
                                                         minimumFractionDigits: 2,
                                                     })}
                                                 </TableCell>
                                                 <TableCell className="text-right text-muted-foreground">
-                                                    #{transaction.id}
+                                                    {transaction.reference_number
+                                                        ? `#${transaction.reference_number}`
+                                                        : '—'}
                                                 </TableCell>
                                             </TableRow>
                                         ))}

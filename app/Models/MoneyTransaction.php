@@ -13,6 +13,7 @@ class MoneyTransaction extends Model
         'amount',
         'source_type',
         'source_id',
+        'cash_register_session_id',
         'category',
         'description',
         'user_id',
@@ -27,6 +28,11 @@ class MoneyTransaction extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function cashRegisterSession(): BelongsTo
+    {
+        return $this->belongsTo(CashRegisterSession::class);
     }
 
     public function reference(): MorphTo
@@ -50,6 +56,7 @@ class MoneyTransaction extends Model
             'amount' => $amount,
             'source_type' => 'cash_register',
             'source_id' => $sessionId,
+            'cash_register_session_id' => $sessionId,
             'category' => $category,
             'description' => $description,
             'user_id' => $userId,
@@ -74,6 +81,7 @@ class MoneyTransaction extends Model
             'amount' => $amount,
             'source_type' => 'cash_register',
             'source_id' => $sessionId,
+            'cash_register_session_id' => $sessionId,
             'category' => $category,
             'description' => $description,
             'user_id' => $userId,
@@ -91,13 +99,15 @@ class MoneyTransaction extends Model
         string $category,
         int $userId,
         ?string $description = null,
-        ?Model $reference = null
+        ?Model $reference = null,
+        ?int $cashRegisterSessionId = null
     ): self {
         return self::create([
             'type' => 'in',
             'amount' => $amount,
             'source_type' => 'bank_account',
             'source_id' => $bankAccountId,
+            'cash_register_session_id' => $cashRegisterSessionId,
             'category' => $category,
             'description' => $description,
             'user_id' => $userId,
@@ -115,13 +125,15 @@ class MoneyTransaction extends Model
         string $category,
         int $userId,
         ?string $description = null,
-        ?Model $reference = null
+        ?Model $reference = null,
+        ?int $cashRegisterSessionId = null
     ): self {
         return self::create([
             'type' => 'out',
             'amount' => $amount,
             'source_type' => 'bank_account',
             'source_id' => $bankAccountId,
+            'cash_register_session_id' => $cashRegisterSessionId,
             'category' => $category,
             'description' => $description,
             'user_id' => $userId,

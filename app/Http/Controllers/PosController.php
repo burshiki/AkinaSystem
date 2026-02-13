@@ -164,23 +164,34 @@ class PosController extends Controller
                 $itemSubtotal = $price * $quantity;
                 $serialNumbers = collect($itemData['serial_numbers'] ?? [])
                     ->map(fn (mixed $serial) => trim((string) $serial))
-                    ->filter()
                     ->values();
 
                 if ($item->has_warranty) {
-                    if ($serialNumbers->count() !== $quantity) {
-                        throw ValidationException::withMessages([
-                            'items' => "{$item->name} requires {$quantity} serial number(s) for warranty.",
-                        ]);
-                    }
+                    $filledSerials = $serialNumbers
+                        ->filter(fn (string $serial) => $serial !== '')
+                        ->values();
 
-                    $normalizedSerials = $serialNumbers
-                        ->map(fn (string $serial) => mb_strtolower($serial));
+                    if ($filledSerials->isNotEmpty()) {
+                        $normalizedSerials = $filledSerials
+                            ->map(fn (string $serial) => mb_strtolower($serial));
 
-                    if ($normalizedSerials->unique()->count() !== $serialNumbers->count()) {
-                        throw ValidationException::withMessages([
-                            'items' => "{$item->name} has duplicate serial number entries.",
-                        ]);
+                        if ($normalizedSerials->unique()->count() !== $normalizedSerials->count()) {
+                            throw ValidationException::withMessages([
+                                'items' => "{$item->name} has duplicate serial number entries.",
+                            ]);
+                        }
+
+                        // Check for serial numbers already registered in warranties for this item
+                        $existingSerials = Warranty::query()
+                            ->where('item_id', $item->id)
+                            ->whereIn('serial_number', $filledSerials->all())
+                            ->pluck('serial_number');
+
+                        if ($existingSerials->isNotEmpty()) {
+                            throw ValidationException::withMessages([
+                                'items' => "{$item->name}: serial number(s) " . $existingSerials->implode(', ') . " already registered under an existing warranty.",
+                            ]);
+                        }
                     }
                 }
 
@@ -211,13 +222,20 @@ class PosController extends Controller
                 if ($item->has_warranty && $item->warranty_months && $item->warranty_months > 0) {
                     $soldAt = $sale->created_at ?? now();
 
-                    foreach ($serialNumbers as $serialNumber) {
+                    $serialEntries = $serialNumbers->count() === $quantity
+                        ? $serialNumbers
+                        : $serialNumbers->pad($quantity, '');
+
+                    foreach (range(0, $quantity - 1) as $index) {
+                        $serialNumber = $serialEntries->get($index);
+                        $serialValue = $serialNumber === '' ? null : $serialNumber;
+
                         Warranty::create([
                             'sale_id' => $sale->id,
                             'sale_item_id' => $saleItem->id,
                             'item_id' => $item->id,
                             'customer_id' => $validated['customer_id'] ?? null,
-                            'serial_number' => $serialNumber,
+                            'serial_number' => $serialValue,
                             'warranty_months' => (int) $item->warranty_months,
                             'sold_at' => $soldAt,
                             'expires_at' => $soldAt->copy()->addMonthsNoOverflow((int) $item->warranty_months),
@@ -249,7 +267,8 @@ class PosController extends Controller
                     category: 'sale',
                     userId: $request->user()->id,
                     description: "Sale #{$sale->id}",
-                    reference: $sale
+                    reference: $sale,
+                    cashRegisterSessionId: $openSession->id
                 );
             }
 
@@ -333,6 +352,8 @@ class PosController extends Controller
         $validated = $request->validate([
             'customer_id' => ['required', 'exists:customers,id'],
             'amount' => ['required', 'numeric', 'min:0.01'],
+            'payment_method' => ['required', 'in:cash,bank'],
+            'bank_account_id' => ['required_if:payment_method,bank', 'nullable', 'exists:bank_accounts,id'],
         ]);
 
         $customer = Customer::findOrFail($validated['customer_id']);
@@ -358,15 +379,31 @@ class PosController extends Controller
             $customer->decrement('debt_balance', $validated['amount']);
             $openSession->increment('debt_repaid', $validated['amount']);
             
-            // Log debt payment as cash in
-            MoneyTransaction::logCashIn(
-                amount: (float) $validated['amount'],
-                sessionId: $openSession->id,
-                category: 'debt_payment',
-                userId: $request->user()->id,
-                description: "Debt payment from {$customer->name}",
-                reference: $customer
-            );
+            // Log debt payment transaction - use appropriate source type
+            if ($validated['payment_method'] === 'bank') {
+                // Bank debt payment - log to bank account and tag session
+                MoneyTransaction::logBankIn(
+                    amount: (float) $validated['amount'],
+                    bankAccountId: (int) $validated['bank_account_id'],
+                    category: 'debt_payment',
+                    userId: $request->user()->id,
+                    description: "Debt payment from {$customer->name} via bank transfer",
+                    reference: $customer,
+                    cashRegisterSessionId: $openSession->id
+                );
+            } else {
+                // Count cash debt payments toward session cash totals
+                $openSession->increment('cash_sales', $validated['amount']);
+                // Cash debt payment - log to cash register
+                MoneyTransaction::logCashIn(
+                    amount: (float) $validated['amount'],
+                    sessionId: $openSession->id,
+                    category: 'debt_payment',
+                    userId: $request->user()->id,
+                    description: "Debt payment from {$customer->name} via cash",
+                    reference: $customer
+                );
+            }
         });
 
         return redirect()->route('pos.index')->with('success', "Debt payment of ₱{$validated['amount']} recorded for {$customer->name}");

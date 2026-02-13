@@ -1,6 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import Pagination, { type PaginationData } from '@/components/pagination';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -22,7 +23,6 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
-import Pagination, { type PaginationData } from '@/components/pagination';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Customers', href: '/customers' },
@@ -46,11 +46,7 @@ type PageProps = {
 export default function CustomersIndex({ customers }: PageProps) {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
-    const [isPayDebtOpen, setIsPayDebtOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<CustomerRow | null>(
-        null
-    );
-    const [payingDebtCustomer, setPayingDebtCustomer] = useState<CustomerRow | null>(
         null
     );
     const [searchQuery, setSearchQuery] = useState('');
@@ -69,10 +65,6 @@ export default function CustomersIndex({ customers }: PageProps) {
         phone: '',
         address: '',
         notes: '',
-    });
-
-    const payDebtForm = useForm({
-        amount: '',
     });
 
     const filteredCustomers = useMemo(() => {
@@ -136,13 +128,13 @@ export default function CustomersIndex({ customers }: PageProps) {
         const interval = setInterval(() => {
             // Only refresh if page is visible and no modals are open
             if (document.visibilityState === 'visible' && 
-                !isCreateOpen && !isEditOpen && !isPayDebtOpen) {
+                !isCreateOpen && !isEditOpen) {
                 router.reload({ only: ['customers'] });
             }
         }, 5000); // Refresh every 5 seconds
 
         return () => clearInterval(interval);
-    }, [isCreateOpen, isEditOpen, isPayDebtOpen]);
+    }, [isCreateOpen, isEditOpen]);
 
     const handleCreateSubmit = (event: FormEvent) => {
         event.preventDefault();
@@ -168,32 +160,6 @@ export default function CustomersIndex({ customers }: PageProps) {
         }
 
         router.delete(`/customers/${customerId}`);
-    };
-
-    const openPayDebtModal = (customer: CustomerRow) => {
-        setPayingDebtCustomer(customer);
-        setIsPayDebtOpen(true);
-        payDebtForm.reset();
-    };
-
-    const handlePayDebtToggle = (open: boolean) => {
-        setIsPayDebtOpen(open);
-        if (!open) {
-            setPayingDebtCustomer(null);
-            payDebtForm.reset();
-            payDebtForm.clearErrors();
-        }
-    };
-
-    const handlePayDebtSubmit = (event: FormEvent) => {
-        event.preventDefault();
-        if (!payingDebtCustomer) {
-            return;
-        }
-
-        payDebtForm.post(`/customers/${payingDebtCustomer.id}/pay-debt`, {
-            onSuccess: () => handlePayDebtToggle(false),
-        });
     };
 
     return (
@@ -254,16 +220,6 @@ export default function CustomersIndex({ customers }: PageProps) {
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex justify-end gap-2">
-                                            {parseFloat(customer.debt_balance) > 0 && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => openPayDebtModal(customer)}
-                                                    className="text-emerald-600 hover:text-emerald-700"
-                                                >
-                                                    Pay Debt
-                                                </Button>
-                                            )}
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -523,69 +479,6 @@ export default function CustomersIndex({ customers }: PageProps) {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={isPayDebtOpen} onOpenChange={handlePayDebtToggle}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Pay Debt</DialogTitle>
-                    </DialogHeader>
-                    <hr />
-                    <form onSubmit={handlePayDebtSubmit} className="space-y-6">
-                        {payingDebtCustomer && (
-                            <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
-                                <div>
-                                    <div className="text-sm font-semibold">Customer</div>
-                                    <div className="text-lg">{payingDebtCustomer.name}</div>
-                                </div>
-                                <div>
-                                    <div className="text-sm font-semibold text-muted-foreground">Current Debt Balance</div>
-                                    <div className="text-2xl font-semibold text-rose-600">
-                                        ₱{parseFloat(payingDebtCustomer.debt_balance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="pay-amount">Payment Amount</Label>
-                            <Input
-                                id="pay-amount"
-                                type="number"
-                                step="0.01"
-                                min="0.01"
-                                max={payingDebtCustomer?.debt_balance}
-                                value={payDebtForm.data.amount}
-                                onChange={(event) =>
-                                    payDebtForm.setData('amount', event.target.value)
-                                }
-                                placeholder="0.00"
-                                className={
-                                    payDebtForm.errors.amount
-                                        ? 'border-destructive focus-visible:ring-destructive'
-                                        : undefined
-                                }
-                            />
-                            {payDebtForm.data.amount && payingDebtCustomer && (
-                                <div className="text-sm text-muted-foreground">
-                                    Remaining balance: ₱{(parseFloat(payingDebtCustomer.debt_balance) - parseFloat(payDebtForm.data.amount || '0')).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                                </div>
-                            )}
-                        </div>
-
-                        <DialogFooter>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() => handlePayDebtToggle(false)}
-                            >
-                                Cancel
-                            </Button>
-                            <Button type="submit" disabled={payDebtForm.processing} className="bg-emerald-600 hover:bg-emerald-700">
-                                Record Payment
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
         </AppLayout>
     );
 }

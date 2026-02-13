@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
-use App\Models\MoneyTransaction;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -65,37 +64,6 @@ class CustomerController extends Controller
     public function destroy(Customer $customer): RedirectResponse
     {
         $customer->delete();
-
-        return redirect()->route('customers.index');
-    }
-
-    public function payDebt(Request $request, Customer $customer): RedirectResponse
-    {
-        $validated = $request->validate([
-            'amount' => ['required', 'numeric', 'min:0.01', 'max:' . $customer->debt_balance],
-        ]);
-
-        $customer->decrement('debt_balance', $validated['amount']);
-
-        // Optionally track this in cash register session
-        $openSession = \App\Models\CashRegisterSession::query()
-            ->where('status', 'open')
-            ->where('opened_by', $request->user()->id)
-            ->first();
-
-        if ($openSession) {
-            $openSession->increment('debt_repaid', $validated['amount']);
-            
-            // Log debt payment transaction
-            MoneyTransaction::logCashIn(
-                amount: (float) $validated['amount'],
-                sessionId: $openSession->id,
-                category: 'debt_payment',
-                userId: $request->user()->id,
-                description: "Debt payment from {$customer->name}",
-                reference: $customer
-            );
-        }
 
         return redirect()->route('customers.index');
     }

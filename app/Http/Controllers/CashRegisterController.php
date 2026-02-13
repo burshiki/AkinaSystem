@@ -4,9 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\CashRegisterSession;
-use App\Models\Customer;
 use App\Models\IncomeExpense;
-use App\Models\Item;
 use App\Models\MoneyTransaction;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -31,12 +29,40 @@ class CashRegisterController extends Controller
             ->latest('opened_at')
             ->first();
 
+        // Calculate bank sales from sales with payment_method=bank
         $bankSales = $session
             ? (float) Sale::query()
                 ->where('cash_register_session_id', $session->id)
                 ->where('payment_method', 'bank')
                 ->sum('total')
             : 0;
+
+        // Calculate cash debt repaid (logged to cash_register)
+        $cashDebtRepaid = $session
+            ? (float) MoneyTransaction::query()
+                ->where('source_type', 'cash_register')
+                ->where('source_id', $session->id)
+                ->where('category', 'debt_payment')
+                ->sum('amount')
+            : 0;
+
+        // Calculate bank debt repaid (logged to bank_account during session time)
+        $bankDebtRepaid = $session
+            ? (float) MoneyTransaction::query()
+                ->where('source_type', 'bank_account')
+                ->where('category', 'debt_payment')
+                ->where(function ($query) use ($session) {
+                    $query->where('cash_register_session_id', $session->id)
+                        ->orWhere(function ($fallback) use ($session) {
+                            $fallback->whereNull('cash_register_session_id')
+                                ->where('created_at', '>=', $session->opened_at);
+                        });
+                })
+                ->sum('amount')
+            : 0;
+
+        // Add bank debt to bank sales total
+        $totalBankSales = $bankSales + $bankDebtRepaid;
 
         $itemSales = $session 
             ? SaleItem::query()
@@ -78,11 +104,11 @@ class CashRegisterController extends Controller
                 ])
             : [];
 
-        // Calculate expected cash fresh to ensure accuracy
+        // Calculate expected cash: opening balance + cash sales + CASH debt only
         $expectedCash = $session ? (
             (float)$session->opening_balance + 
             (float)$session->cash_sales + 
-            (float)$session->debt_repaid
+            $cashDebtRepaid
         ) : 0;
 
         return Inertia::render('CashRegister/Index', [
@@ -90,8 +116,9 @@ class CashRegisterController extends Controller
                 'id' => $session->id,
                 'opening_balance' => $session->opening_balance,
                 'cash_sales' => $session->cash_sales,
-                'bank_sales' => $bankSales,
-                'debt_repaid' => $session->debt_repaid,
+                'bank_sales' => $totalBankSales,
+                'cash_debt_repaid' => $cashDebtRepaid,
+                'bank_debt_repaid' => $bankDebtRepaid,
                 'expected_cash' => $expectedCash,
                 'actual_cash' => $session->actual_cash,
                 'opened_at' => $session->opened_at?->format('M d, Y H:i'),
@@ -138,7 +165,7 @@ class CashRegisterController extends Controller
             );
         }
 
-        return redirect()->route('cash-register.index');
+        return redirect()->route('pos.index')->with('success', 'Register session started. You can now process sales.');
     }
 
     public function getShiftReview(Request $request): \Illuminate\Http\JsonResponse
@@ -192,22 +219,46 @@ class CashRegisterController extends Controller
             ]);
 
         // Calculate expected cash fresh to ensure accuracy
+        // Calculate cash debt repaid (logged to cash_register)
+        $cashDebtRepaid = (float) MoneyTransaction::query()
+            ->where('source_type', 'cash_register')
+            ->where('source_id', $session->id)
+            ->where('category', 'debt_payment')
+            ->sum('amount');
+
+        // Calculate bank debt repaid (logged to bank_account during session time)
+        $bankDebtRepaid = (float) MoneyTransaction::query()
+            ->where('source_type', 'bank_account')
+            ->where('category', 'debt_payment')
+            ->where(function ($query) use ($session) {
+                $query->where('cash_register_session_id', $session->id)
+                    ->orWhere(function ($fallback) use ($session) {
+                        $fallback->whereNull('cash_register_session_id')
+                            ->where('created_at', '>=', $session->opened_at);
+                    });
+            })
+            ->sum('amount');
+
         $expectedCash = (float)$session->opening_balance + 
                         (float)$session->cash_sales + 
-                        (float)$session->debt_repaid;
+                        $cashDebtRepaid;
 
         $bankSales = (float) Sale::query()
             ->where('cash_register_session_id', $session->id)
             ->where('payment_method', 'bank')
             ->sum('total');
 
+        // Add bank debt to bank sales total
+        $totalBankSales = $bankSales + $bankDebtRepaid;
+
         return response()->json([
             'session' => [
                 'id' => $session->id,
                 'opening_balance' => number_format($session->opening_balance, 2),
                 'cash_sales' => number_format($session->cash_sales, 2),
-                'bank_sales' => number_format($bankSales, 2),
-                'debt_repaid' => number_format($session->debt_repaid, 2),
+                'bank_sales' => number_format($totalBankSales, 2),
+                'cash_debt_repaid' => number_format($cashDebtRepaid, 2),
+                'bank_debt_repaid' => number_format($bankDebtRepaid, 2),
                 'expected_cash' => number_format($expectedCash, 2),
                 'opened_at' => $session->opened_at?->format('M d, Y H:i A'),
                 'opened_by' => $session->opener?->name ?? 'Unknown',
@@ -295,8 +346,36 @@ class CashRegisterController extends Controller
             ->where('cash_register_session_id', $session->id)
             ->where('payment_method', 'bank')
             ->sum('total');
+        
+        // Calculate cash debt payments (from cash register)
+        $cashDebtRepaid = (float) MoneyTransaction::query()
+            ->where('source_type', 'cash_register')
+            ->where('category', 'debt_payment')
+            ->where('type', 'in')
+            ->where(function ($query) use ($session) {
+                $query->where('cash_register_session_id', $session->id)
+                    ->orWhere(function ($fallback) use ($session) {
+                        $fallback->whereNull('cash_register_session_id')
+                            ->where('source_id', $session->id);
+                    });
+            })
+            ->sum('amount');
+        
+        // Calculate bank debt payments (from bank accounts)
+        $bankDebtRepaid = (float) MoneyTransaction::query()
+            ->where('source_type', 'bank_account')
+            ->where('category', 'debt_payment')
+            ->where('type', 'in')
+            ->where(function ($query) use ($session) {
+                $query->where('cash_register_session_id', $session->id)
+                    ->orWhere(function ($fallback) use ($session) {
+                        $fallback->whereNull('cash_register_session_id')
+                            ->whereBetween('created_at', [$session->opened_at, $session->closed_at ?? now()]);
+                    });
+            })
+            ->sum('amount');
 
-        $totalPosIncome = $cashSales + $bankSales;
+        $totalPosIncome = $cashSales + $cashDebtRepaid + $bankSales + $bankDebtRepaid;
 
         if ($totalPosIncome <= 0) {
             return;
@@ -306,10 +385,12 @@ class CashRegisterController extends Controller
             'type' => 'income',
             'category' => 'POS Sales',
             'description' => sprintf(
-                'Auto-recorded from closed register session #%d (Cash: ₱%s, Bank: ₱%s)',
+                'Auto-recorded from closed register session #%d (Cash Sales: ₱%s, Cash Debt: ₱%s, Bank Sales: ₱%s, Bank Debt: ₱%s)',
                 $session->id,
                 number_format($cashSales, 2),
-                number_format($bankSales, 2)
+                number_format($cashDebtRepaid, 2),
+                number_format($bankSales, 2),
+                number_format($bankDebtRepaid, 2)
             ),
             'amount' => $totalPosIncome,
             'source' => 'cash_register',

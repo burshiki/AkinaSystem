@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
+use App\Models\Customer;
+use App\Models\MoneyTransaction;
 use App\Models\Sale;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -27,19 +30,37 @@ class BankAccountController extends Controller
                 'created_at' => $account->created_at?->format('M d, Y'),
             ]);
 
-        $transactions = Sale::query()
-            ->with('customer')
-            ->where('payment_method', 'bank')
+        $transactions = MoneyTransaction::query()
+            ->where('source_type', 'bank_account')
             ->orderByDesc('created_at')
+            ->with(['reference' => fn (MorphTo $morphTo) => $morphTo->morphWith([
+                Sale::class => ['customer'],
+                Customer::class => [],
+            ])])
             ->get()
-            ->map(fn (Sale $sale) => [
-                'id' => $sale->id,
-                'bank_account_id' => $sale->bank_account_id,
-                'customer' => $sale->customer?->name ?? 'Walk-in Customer',
-                'total' => $sale->total,
-                'amount_paid' => $sale->amount_paid,
-                'created_at' => $sale->created_at?->format('M d, Y h:i A'),
-            ]);
+            ->map(function (MoneyTransaction $transaction) {
+                $customerName = null;
+                $referenceNumber = null;
+
+                if ($transaction->reference instanceof Sale) {
+                    $customerName = $transaction->reference->customer?->name ?? 'Walk-in Customer';
+                    $referenceNumber = $transaction->reference->id;
+                } elseif ($transaction->reference instanceof Customer) {
+                    $customerName = $transaction->reference->name;
+                }
+
+                return [
+                    'id' => $transaction->id,
+                    'bank_account_id' => $transaction->source_id,
+                    'customer' => $customerName,
+                    'description' => $transaction->description,
+                    'category' => $transaction->category,
+                    'type' => $transaction->type,
+                    'amount' => (string) $transaction->amount,
+                    'reference_number' => $referenceNumber,
+                    'created_at' => $transaction->created_at?->format('M d, Y h:i A'),
+                ];
+            });
 
         return Inertia::render('Options/bank-accounts', [
             'accounts' => $accounts,
